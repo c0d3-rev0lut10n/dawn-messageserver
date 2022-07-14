@@ -1,0 +1,5 @@
+File formatting:
+	Messages:
+		Message files are named with a unique number. The content consists of raw bytes. The first 4 bytes of the content are the message deletion code, the rest is the message content.
+	Handles:
+		Handle files have the name of the handle. The content consists of raw bytes. The first 16 bytes are the hash of the handle password, the rest is the handle content.

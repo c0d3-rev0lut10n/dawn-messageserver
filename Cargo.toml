@@ -13,3 +13,4 @@ hex = { version = "*" }
 serde = { version = "*" , features = ["derive"]}
 lazy_static = { version = "*" }
 futures = { version = "*" }
+chrono = { version = "*" }

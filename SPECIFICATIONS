@@ -1,5 +1,88 @@
 File formatting:
 	Messages:
-		Message files are named with a unique number. The content consists of raw bytes. The first 4 bytes of the content are the message deletion code, the rest is the message content.
+		Message files are named with a unique number. The content consists of raw bytes. The first 4 bytes of the content are the message deletion code, the next 8 bytes are the timestamp, the rest is the message content.
+		If a message gets deleted, the file is truncated with 1 byte of 1's ("ff" in hex)
 	Handles:
-		Handle files have the name of the handle. The content consists of raw bytes. The first 16 bytes are the hash of the handle password, the rest is the handle content.
+		Handle files have the name of the handle. The content consists of raw bytes. The first 32 bytes are the hash of the handle password, the next 32 bytes are the id, the rest is the handle content.
+
+
+
+HTTP API:
+Replace YOUR_MESSAGESERVER with the domain name or IP address of the messageserver you are using. The main server is https://messageserver.dawn.laurenz-dev.de.
+	receive messages:
+		GET http(s)://YOUR_MESSAGESERVER/rcv/{id}/{message number}
+			Use this to receive a specific message
+			{id}: the (temporary) id you want to request a message for, has to be a lowercase hex string
+			{message number}: the number of the message you want to receive, it has to be a 8-bit unsigned integer. If your request succeeds, you should increment that number to receive the next message.
+			possible specific responses:
+				200 OK
+					The message exists, the content of the message is delivered in the body of the response as raw binary data.
+					-or-
+					If the content is 1 byte filled with ones, this indicates that the message got deleted.
+					
+				204 No Content
+					This message does not exist.
+				
+				//400 Bad Request
+					If your request doesn't match the pattern as described above, you will receive this error.
+					
+				//500 Internal Server Error
+					This indicates that an unexpected error happened while processing the request. You should stop requesting this resource and give the user the instruction to notify the server administrator.
+		
+		GET  http(s)://YOUR_MESSAGESERVER/d/{id}/{message number}?mdc={message detail code}
+			Use this to get details about a specific message. Currently, this only gives you the timestamp.
+			The placeholders work the same way like the ones in the rcv function
+			possible specific responses:
+				204 No Content
+					The request was successful, the details are in the headers of the response. Currently, there will only be one custom header:
+						x-timestamp: This header contains the timestamp as seconds since Epoche.
+				
+	send messages:
+		POST http(s)://YOUR_MESSAGESERVER/snd/{id}?mdc={message detail code}
+			Use this to send a message to {id}, providing the binary message in the request body and the (generated) message detail code in the query string
+			possible responses:
+				204 No Content
+					This is used to indicate that no error was encountered
+	
+	delete messages:
+		DELETE http(s)://YOUR_MESSAGESERVER/del/{id}/{message number}?mdc={message detail code}
+			Use this to delete a specific message, providing the message detail code
+			possible responses:
+				204 No Content
+					This is used to indicate that no error was encountered
+	
+	search for a handle:
+		GET http(s)://YOUR_MESSAGESERVER/who/{handle}
+			{handle}: the handle you want to search for. This has to contain only alphanumeric characters, dashes and underscores.
+			possible responses:
+				200 OK
+					The handle data is in the body, the id is in the header "X-ID".
+				204 No Content
+					This handle does not exist.
+	
+	set a handle:
+		POST http(s)://YOUR_MESSAGESERVER/sethandle/{id}/{handle}?password={your password}
+			{id}: the ID you want too set the handle for, has to be a 64 characters long hex string
+			{handle}: the handle name you want to claim. Has to contain only alphanumeric characters, dashes and underscores.
+			{your password}: If the handle already exists, you have to provide the correct password to change it. Otherwise, you can use any non-empty, url-safe string.
+			possible responses:
+				204 No Content
+					No error was encountered
+	
+	delete a handle:
+		DELETE http(s)://YOUR_MESSAGESERVER/delhandle/{handle}?password={your password}
+			possible responses:
+				204 No Content
+					No error was encountered
+	
+	
+GENERAL:
+	possible responses beside those documented above:
+		400 Bad Request
+			Either you sent a malformed request, or the paramters you sent didn't match (i.ex. your provided message detail code was incorrect)
+		
+		404 Not Found
+			Your request didn't match any pattern that gets parsed by the server
+		
+		500 Internal Server Error
+			Something on the server went wrong. Please ask the user to contact the server administrator

@@ -14,3 +14,5 @@ serde = { version = "*" , features = ["derive"]}
 lazy_static = { version = "*" }
 futures = { version = "*" }
 chrono = { version = "*" }
+tokio = { version = "*", features = ["full"]}
+fs4 = { version = "*", features = ["tokio", "tokio-async"] }

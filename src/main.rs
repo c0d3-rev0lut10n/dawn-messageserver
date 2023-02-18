@@ -2,15 +2,16 @@
 extern crate lazy_static;
 
 use actix_web::{get, post, delete, web, App, HttpResponse, HttpServer, Responder};
-use std::path::Path;
-use std::fs::{self, File, OpenOptions};
-use std::io::Write;
+use std::path::PathBuf;
+use tokio::fs::{self, File, OpenOptions};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use regex::Regex;
 use hex::{encode, decode};
 use serde::Deserialize;
 use futures::StreamExt;
 use chrono::prelude::*;
 use std::array::TryFromSliceError;
+use fs4::tokio::AsyncFileExt;
 
 // constants, planned to be read from config file in a later version
 const RUNTIME_DIR : &str = "./runtime";
@@ -25,7 +26,7 @@ lazy_static! {
 	static ref IS_HANDLE: Regex = Regex::new("^[0-9a-zA-Z_-]+$").unwrap();
 	static ref IS_MDC: Regex = Regex::new("^[0-9a-f]{8}$").unwrap();
 	// pattern for deleted messages
-	static ref DELETED : Vec<u8> = vec![255];
+	static ref DELETED: Vec<u8> = vec![255];
 
 }
 
@@ -46,9 +47,6 @@ macro_rules! return_client_error {
 // byte return macro
 macro_rules! return_bytes {
 	($a:expr) => {
-		/*let mut response = vec![1];
-		response.append(&mut $a);
-		return HttpResponse::Ok().content_type("application/octet-stream").body(response)*/
 		return HttpResponse::Ok().content_type("application/octet-stream").body($a)
 	}
 }
@@ -56,7 +54,6 @@ macro_rules! return_bytes {
 // zero return macro
 macro_rules! return_zero {
 	() => {
-		//return HttpResponse::Ok().content_type("application/octet-stream").body(vec![0])
 		return HttpResponse::NoContent().finish()
 	}
 }
@@ -109,17 +106,30 @@ struct DeleteHandleRequestScheme {
 async fn rcv(req: web::Path<ReceiveRequestScheme>) -> impl Responder {
 	// check if id is hex-string
 	if !IS_HEX.is_match(&req.id) { return_client_error!("parsing error"); }
-	let mut path = Path::new(RUNTIME_DIR).to_owned();
+	
+	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push(&req.id);
 	path.push(&req.msg_number.to_string());
 	if !path.is_file() {
 		// message does not exist
 		return_zero!();
 	}
+	
 	// message does exist
-	let file_content = fs::read(&path);
-	if file_content.is_err() { return_server_error!(); }
-	let file_bytes = file_content.unwrap();
+	let message_file = File::open(&path).await;
+	if message_file.is_err() { return_server_error!(); }
+	let mut message_file = message_file.unwrap();
+	
+	if message_file.lock_shared().is_err() { return_server_error!(); }
+	
+	let mut file_bytes = vec![];
+	if message_file.read_to_end(&mut file_bytes).await.is_err() {
+		if message_file.unlock().is_err() { return_server_error!(); }
+		return_server_error!();
+	}
+	
+	if message_file.unlock().is_err() { return_server_error!(); }
+	
 	if file_bytes.len() <= SAVED_MSG_MINIMUM {
 		if file_bytes == DELETED.to_vec() {
 			// message got deleted
@@ -129,6 +139,7 @@ async fn rcv(req: web::Path<ReceiveRequestScheme>) -> impl Responder {
 		return_server_error!();
 	}
 	let (_, message) = file_bytes.split_at(12);
+	
 	return_bytes!(message.to_vec());
 }
 
@@ -137,19 +148,33 @@ async fn rcv(req: web::Path<ReceiveRequestScheme>) -> impl Responder {
 async fn d(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) -> impl Responder {
 	// check if id is hex-string
 	if !IS_HEX.is_match(&req.id) { return_client_error!("parsing error"); }
+	
 	// check if message detail code is valid
 	if !IS_MDC.is_match(&query.mdc) { return_client_error!("invalid mdc"); }
-	let mut path = Path::new(RUNTIME_DIR).to_owned();
+	
+	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push(&req.id);
 	path.push(&req.msg_number.to_string());
 	if !path.is_file() {
 		// message does not exist
 		return_zero!();
 	}
+	
 	// message does exist
-	let file_content = fs::read(&path);
-	if file_content.is_err() { return_server_error!(); }
-	let file_bytes = file_content.unwrap();
+	let message_file = File::open(&path).await;
+	if message_file.is_err() { return_server_error!(); }
+	let mut message_file = message_file.unwrap();
+	
+	if message_file.lock_shared().is_err() { return_server_error!(); }
+	
+	let mut file_bytes = vec![];
+	if message_file.read_to_end(&mut file_bytes).await.is_err() {
+		if message_file.unlock().is_err() { return_server_error!(); }
+		return_server_error!();
+	}
+	
+	if message_file.unlock().is_err() { return_server_error!(); }
+	
 	if file_bytes.len() <= SAVED_MSG_MINIMUM {
 		if file_bytes == DELETED.to_vec() {
 			// message got deleted
@@ -159,16 +184,18 @@ async fn d(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) ->
 		return_server_error!();
 	}
 	let (mdc, info) = file_bytes.split_at(4);
+	
 	// verify mdc
 	if query.mdc != encode(&mdc) {
 		return_client_error!("wrong mdc");
 	}
+	
 	let (timestamp_bytes, _) = info.split_at(8);
 	let timestamp_slice : Result<[u8;8], TryFromSliceError> = timestamp_bytes.to_owned().as_slice().try_into();
 	if timestamp_slice.is_err() { return_server_error!(); }
 	let timestamp = i64::from_le_bytes(timestamp_slice.unwrap());
+	
 	return HttpResponse::NoContent().insert_header(("X-Timestamp", timestamp.to_string())).finish();
-	//return HttpResponse::NotImplemented().finish();
 }
 
 // send message to id with message detail code in query string and content in body
@@ -194,19 +221,26 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 	// get current time
 	let mut time = Utc::now().timestamp().to_le_bytes().to_vec();
 	// get file path, planned to use database in a later version
-	let mut path = Path::new(RUNTIME_DIR).to_owned();
+	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push(&req.id);
 	if !path.exists() {
 		// first message for id, therefore create directory
-		if fs::create_dir(path).is_err() { return_server_error!(); }
+		if fs::create_dir(path).await.is_err() { return_server_error!(); }
 		// save number of messages to file
-		let mut msg_number_file = Path::new(RUNTIME_DIR).to_owned();
+		let mut msg_number_file = PathBuf::from(RUNTIME_DIR);
 		msg_number_file.push(&req.id.to_string());
 		msg_number_file.push("msg_number");
-		let number_file = File::create(msg_number_file);
+		let number_file = File::create(msg_number_file).await;
 		if number_file.is_err() { return_server_error!(); }
-		if number_file.unwrap().write_all("0".as_bytes()).is_err() { return_server_error!(); }
-		let mut msg_path = Path::new(RUNTIME_DIR).to_owned();
+		let mut number_file = number_file.unwrap();
+		
+		if number_file.lock_exclusive().is_err() { return_server_error!(); }
+		
+		if number_file.write_all("0".as_bytes()).await.is_err() { return_server_error!(); }
+		
+		if number_file.unlock().is_err() { return_server_error!(); }
+		
+		let mut msg_path = PathBuf::from(RUNTIME_DIR);
 		msg_path.push(&req.id.to_string());
 		msg_path.push("0");
 		// write content and mdc to file
@@ -216,22 +250,49 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 			let mut file_bytes = file_bytes.unwrap();
 			file_bytes.append(&mut time);
 			file_bytes.append(&mut body.to_vec());
-			let mut msg_file = File::create(msg_path).expect("File creation error");
-			if msg_file.write_all(&file_bytes).is_err() { return_server_error!(); }
-			if msg_file.flush().is_err() { return_server_error!(); }
+			let msg_file = File::create(msg_path).await;
+			if msg_file.is_err() { return_server_error!(); }
+			let mut msg_file = msg_file.unwrap();
+			
+			if msg_file.lock_exclusive().is_err() { return_server_error!(); }
+			
+			if msg_file.write_all(&file_bytes).await.is_err() { return_server_error!(); }
+			if msg_file.flush().await.is_err() { return_server_error!(); }
+			
+			if msg_file.unlock().is_err() { return_server_error!(); }
 		}
 	}
 	else {
 		// there are already messages for this id
-		let mut msg_number_file = Path::new(RUNTIME_DIR).to_owned();
-		msg_number_file.push(&req.id.to_string());
-		msg_number_file.push("msg_number");
-		let msg_number = String::from_utf8_lossy(&fs::read(&msg_number_file).expect("File reading error")).to_owned().parse().unwrap_or(0) + 1;
-		if msg_number > 60000 { return_client_error!("Too many messages"); }
-		let mut number_file = OpenOptions::new().write(true).truncate(true).open(&msg_number_file).expect("File writing error");
-		if number_file.write_all(&msg_number.to_string().as_bytes()).is_err() { return_server_error!(); }
-		if number_file.flush().is_err() { return_server_error!(); }
-		let mut msg_path = Path::new(RUNTIME_DIR).to_owned();
+		let mut msg_number_path = PathBuf::from(RUNTIME_DIR);
+		msg_number_path.push(&req.id.to_string());
+		msg_number_path.push("msg_number");
+		
+		// lock exclusively to prevent race conditions
+		let msg_number_file = OpenOptions::new().read(true).write(true).truncate(true).open(&msg_number_path).await;
+		if msg_number_file.is_err() { return_server_error!(); }
+		let mut msg_number_file = msg_number_file.unwrap();
+		
+		if msg_number_file.lock_exclusive().is_err() { return_server_error!(); }
+		
+		let mut number_bytes = vec![];
+		if msg_number_file.read_to_end(&mut number_bytes).await.is_err() { return_server_error!(); }
+		
+		let msg_number = String::from_utf8_lossy(&number_bytes).to_owned().parse().unwrap_or(0) + 1;
+		
+		if msg_number > 60000 {
+			if msg_number_file.unlock().is_err() { return_server_error!(); }
+			return_client_error!("Too many messages");
+		}
+		
+		if msg_number_file.write_all(&msg_number.to_string().as_bytes()).await.is_err() || msg_number_file.flush().await.is_err() {
+			if msg_number_file.unlock().is_err() { return_server_error!(); }
+			return_server_error!();
+		}
+		
+		if msg_number_file.unlock().is_err() { return_server_error!(); }
+		
+		let mut msg_path = PathBuf::from(RUNTIME_DIR);
 		msg_path.push(&req.id.to_string());
 		msg_path.push(&msg_number.to_string());
 		// write content and mdc to file
@@ -241,9 +302,14 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 			let mut file_bytes = file_bytes.unwrap();
 			file_bytes.append(&mut time);
 			file_bytes.append(&mut body.to_vec());
-			let mut msg_file = File::create(msg_path).expect("File creation error");
-			if msg_file.write_all(&file_bytes).is_err() { return_server_error!(); }
-			if msg_file.flush().is_err() { return_server_error!(); }
+			let mut msg_file = File::create(msg_path).await.expect("File creation error");
+			
+			if msg_file.lock_exclusive().is_err() { return_server_error!(); }
+						
+			if msg_file.write_all(&file_bytes).await.is_err() || msg_file.flush().await.is_err() {
+				if msg_file.unlock().is_err() { return_server_error!(); }
+				return_server_error!();
+			}
 		}
 	}
 	return_zero!();
@@ -277,7 +343,7 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 	// check if handle has correct syntax
 	if !IS_HANDLE.is_match(&req.handle) { return_client_error!("incorrect handle syntax"); }
 	// get handle path, planned to use database in a later version
-	let mut path = Path::new(RUNTIME_DIR).to_owned();
+	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push("handle");
 	path.push(&req.handle);
 	let password_hash = openssl::sha::sha256(&query.password.as_bytes());
@@ -287,27 +353,27 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 		file_content.append(&mut password_hash.to_vec());
 		file_content.append(&mut id_bytes.to_vec());
 		file_content.append(&mut body.to_vec());
-		let mut handle_file = File::create(&path).expect("File creation error");
-		if handle_file.write_all(&file_content).is_err() { return_server_error!(); }
-		if handle_file.flush().is_err() { return_server_error!(); }
+		let mut handle_file = File::create(&path).await.expect("File creation error");
+		if handle_file.write_all(&file_content).await.is_err() { return_server_error!(); }
+		if handle_file.flush().await.is_err() { return_server_error!(); }
 		return_bytes!(vec![]);
 	}
 	else {
 		// handle is used, check if password matches
-		let saved_content = fs::read(&path).expect("File reading error");
+		let saved_content = fs::read(&path).await.expect("File reading error");
 		let (saved_hash, _) = saved_content.split_at(32);
 		// check if hash matches
 		if password_hash != saved_hash { return_client_error!("wrong password"); }
 		// write new content to file
-		let handle_file_open = OpenOptions::new().write(true).truncate(true).open(&path);
+		let handle_file_open = OpenOptions::new().write(true).truncate(true).open(&path).await;
 		if handle_file_open.is_err() { return_server_error!(); }
 		let mut handle_file = handle_file_open.unwrap();
 		let mut file_content = vec![];
 		file_content.append(&mut password_hash.to_vec());
 		file_content.append(&mut id_bytes.to_vec());
 		file_content.append(&mut body.to_vec());
-		if handle_file.write_all(&file_content).is_err() { return_server_error!(); }
-		if handle_file.flush().is_err() { return_server_error!(); }
+		if handle_file.write_all(&file_content).await.is_err() { return_server_error!(); }
+		if handle_file.flush().await.is_err() { return_server_error!(); }
 		return_zero!();
 	}
 }
@@ -318,12 +384,12 @@ async fn who(req: web::Path<FindHandleRequestScheme>) -> impl Responder {
 	// check if handle has correct syntax
 	if !IS_HANDLE.is_match(&req.handle) { return_client_error!("invalid handle"); }
 	// get handle path, planned to use database in a later version
-	let mut path = Path::new(RUNTIME_DIR).to_owned();
+	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push("handle");
 	path.push(&req.handle);
 	if path.exists() {
 		// handle exists
-		let file_content = fs::read(&path).expect("File reading error");
+		let file_content = fs::read(&path).await.expect("File reading error");
 		if file_content.len() <= 64 { return_server_error!(); }
 		let (_, handle_content) = file_content.split_at(32);
 		let (handle_name, handle_data) = handle_content.split_at(32);
@@ -339,20 +405,20 @@ async fn delhandle(req: web::Path<DeleteHandleRequestScheme>, query: web::Query<
 	// check if handle has correct syntax
 	if !IS_HANDLE.is_match(&req.handle) { return_client_error!("invalid handle"); }
 	// get handle path, planned to use database in a later version
-	let mut path = Path::new(RUNTIME_DIR).to_owned();
+	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push("handle");
 	path.push(&req.handle);
 	if path.exists() {
 		// verify password
 		let password_hash = openssl::sha::sha256(&query.password.as_bytes());
-		let saved_content = fs::read(&path);
+		let saved_content = fs::read(&path).await;
 		if saved_content.is_err() { return_server_error!(); }
 		let saved_content = saved_content.unwrap();
 		let (saved_hash, _) = saved_content.split_at(32);
 		// check if hash matches
 		if password_hash != saved_hash { return_client_error!("wrong password"); }
 		// delete handle
-		if fs::remove_file(&path).is_err() { return_server_error!(); }
+		if fs::remove_file(&path).await.is_err() { return_server_error!(); }
 		return_zero!();
 	}
 	return_client_error!("handle not found");
@@ -365,14 +431,14 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 	if !IS_HEX.is_match(&req.id) { return_client_error!("invalid id"); }
 	// check if message detail code is valid
 	if !IS_MDC.is_match(&query.mdc) { return_client_error!("invalid mdc"); }
-	let mut path = Path::new(RUNTIME_DIR).to_owned();
+	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push(&req.id);
 	path.push(&req.msg_number.to_string());
 	if path.is_file() {
-		let file_content = fs::read(&path);
+		let file_content = fs::read(&path).await;
 		if file_content.is_err() { return_server_error!(); }
 		let file_bytes = file_content.unwrap();
-		if file_bytes.len() <= 4 {
+		if file_bytes.len() <= SAVED_MSG_MINIMUM {
 			if file_bytes == DELETED.to_vec() {
 				// message got deleted
 				let response = vec![255];
@@ -382,11 +448,11 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 		}
 		let (mdc, _) = file_bytes.split_at(4);
 		if query.mdc == encode(&mdc) {
-			let file = OpenOptions::new().write(true).truncate(true).open(&path);
+			let file = OpenOptions::new().write(true).truncate(true).open(&path).await;
 			if file.is_err() { return_server_error!(); }
 			let mut file = file.unwrap();
-			if file.write_all(&DELETED).is_err() { return_server_error!(); }
-			if file.flush().is_err() { return_server_error!(); }
+			if file.write_all(&DELETED).await.is_err() { return_server_error!(); }
+			if file.flush().await.is_err() { return_server_error!(); }
 			return_zero!();
 		}
 		else { return_client_error!("wrong mdc"); }

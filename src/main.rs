@@ -124,7 +124,7 @@ async fn rcv(req: web::Path<ReceiveRequestScheme>) -> impl Responder {
 	
 	let mut file_bytes = vec![];
 	if message_file.read_to_end(&mut file_bytes).await.is_err() {
-		if message_file.unlock().is_err() { return_server_error!(); }
+		message_file.unlock().ok();
 		return_server_error!();
 	}
 	
@@ -169,7 +169,7 @@ async fn d(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) ->
 	
 	let mut file_bytes = vec![];
 	if message_file.read_to_end(&mut file_bytes).await.is_err() {
-		if message_file.unlock().is_err() { return_server_error!(); }
+		message_file.unlock().ok();
 		return_server_error!();
 	}
 	
@@ -237,7 +237,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		if number_file.lock_exclusive().is_err() { return_server_error!(); }
 		
 		if number_file.write_all("0".as_bytes()).await.is_err() {
-			if number_file.unlock().is_err() { return_server_error!(); }
+			number_file.unlock().ok();
 			return_server_error!();
 		}
 		
@@ -260,7 +260,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 			if msg_file.lock_exclusive().is_err() { return_server_error!(); }
 			
 			if msg_file.write_all(&file_bytes).await.is_err() || msg_file.flush().await.is_err() {
-				if msg_file.unlock().is_err() { return_server_error!(); }
+				msg_file.unlock().ok();
 				return_server_error!();
 			}
 			
@@ -282,7 +282,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		
 		let mut number_bytes = vec![];
 		if msg_number_file.read_to_end(&mut number_bytes).await.is_err() {
-			if msg_number_file.unlock().is_err() { return_server_error!(); }
+			msg_number_file.unlock().ok();
 			return_server_error!();
 		}
 		
@@ -294,7 +294,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		}
 		
 		if msg_number_file.write_all(&msg_number.to_string().as_bytes()).await.is_err() || msg_number_file.flush().await.is_err() {
-			if msg_number_file.unlock().is_err() { return_server_error!(); }
+			msg_number_file.unlock().ok();
 			return_server_error!();
 		}
 		
@@ -315,7 +315,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 			if msg_file.lock_exclusive().is_err() { return_server_error!(); }
 						
 			if msg_file.write_all(&file_bytes).await.is_err() || msg_file.flush().await.is_err() {
-				if msg_file.unlock().is_err() { return_server_error!(); }
+				msg_file.unlock().ok();
 				return_server_error!();
 			}
 			
@@ -370,7 +370,7 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 		if handle_file.lock_exclusive().is_err() { return_server_error!(); }
 		
 		if handle_file.write_all(&file_content).await.is_err() || handle_file.flush().await.is_err() {
-			if handle_file.unlock().is_err() { return_server_error!(); }
+			handle_file.unlock().ok();
 			return_server_error!();
 		}
 		
@@ -386,7 +386,7 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 		
 		let mut saved_content = vec![];
 		if handle_file.read_to_end(&mut saved_content).await.is_err() {
-			if handle_file.unlock().is_err() { return_server_error!(); }
+			handle_file.unlock().ok();
 			return_server_error!();
 		}
 		
@@ -402,7 +402,7 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 		file_content.append(&mut id_bytes.to_vec());
 		file_content.append(&mut body.to_vec());
 		if handle_file.write_all(&file_content).await.is_err() || handle_file.flush().await.is_err() {
-			if handle_file.unlock().is_err() { return_server_error!(); }
+			handle_file.unlock().ok();
 			return_server_error!();
 		}
 		if handle_file.unlock().is_err() { return_server_error!(); }
@@ -476,7 +476,7 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 		
 		let mut file_bytes = vec![];
 		if message_file.read_to_end(&mut file_bytes).await.is_err() {
-			if message_file.unlock().is_err() { return_server_error!(); }
+			message_file.unlock().ok();
 			return_server_error!();
 		}
 		
@@ -494,7 +494,7 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 		
 		if query.mdc == encode(&mdc) {
 			if message_file.write_all(&DELETED).await.is_err() || message_file.flush().await.is_err() {
-				if message_file.unlock().is_err() { return_server_error!(); }
+				message_file.unlock().ok();
 				return_server_error!();
 			}
 			if message_file.unlock().is_err() { return_server_error!(); }

@@ -363,29 +363,51 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 		file_content.append(&mut password_hash.to_vec());
 		file_content.append(&mut id_bytes.to_vec());
 		file_content.append(&mut body.to_vec());
-		let mut handle_file = File::create(&path).await.expect("File creation error");
-		if handle_file.write_all(&file_content).await.is_err() { return_server_error!(); }
-		if handle_file.flush().await.is_err() { return_server_error!(); }
-		return_bytes!(vec![]);
+		let handle_file = File::create(&path).await;
+		if handle_file.is_err() { return_server_error!(); }
+		let mut handle_file = handle_file.unwrap();
+		
+		if handle_file.lock_exclusive().is_err() { return_server_error!(); }
+		
+		if handle_file.write_all(&file_content).await.is_err() || handle_file.flush().await.is_err() {
+			if handle_file.unlock().is_err() { return_server_error!(); }
+			return_server_error!();
+		}
+		
+		if handle_file.unlock().is_err() { return_server_error!(); }
 	}
 	else {
 		// handle is used, check if password matches
-		let saved_content = fs::read(&path).await.expect("File reading error");
+		let handle_file = OpenOptions::new().read(true).write(true).truncate(true).open(&path).await;
+		if handle_file.is_err() { return_server_error!(); }
+		let mut handle_file = handle_file.unwrap();
+		
+		if handle_file.lock_exclusive().is_err() { return_server_error!(); }
+		
+		let mut saved_content = vec![];
+		if handle_file.read_to_end(&mut saved_content).await.is_err() {
+			if handle_file.unlock().is_err() { return_server_error!(); }
+			return_server_error!();
+		}
+		
 		let (saved_hash, _) = saved_content.split_at(32);
 		// check if hash matches
-		if password_hash != saved_hash { return_client_error!("wrong password"); }
+		if password_hash != saved_hash {
+			if handle_file.unlock().is_err() { return_server_error!(); }
+			return_client_error!("wrong password");
+		}
 		// write new content to file
-		let handle_file_open = OpenOptions::new().write(true).truncate(true).open(&path).await;
-		if handle_file_open.is_err() { return_server_error!(); }
-		let mut handle_file = handle_file_open.unwrap();
 		let mut file_content = vec![];
 		file_content.append(&mut password_hash.to_vec());
 		file_content.append(&mut id_bytes.to_vec());
 		file_content.append(&mut body.to_vec());
-		if handle_file.write_all(&file_content).await.is_err() { return_server_error!(); }
-		if handle_file.flush().await.is_err() { return_server_error!(); }
-		return_zero!();
+		if handle_file.write_all(&file_content).await.is_err() || handle_file.flush().await.is_err() {
+			if handle_file.unlock().is_err() { return_server_error!(); }
+			return_server_error!();
+		}
+		if handle_file.unlock().is_err() { return_server_error!(); }
 	}
+	return_zero!();
 }
 
 // search for a handle

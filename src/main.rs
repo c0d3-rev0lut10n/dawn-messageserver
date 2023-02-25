@@ -421,8 +421,22 @@ async fn who(req: web::Path<FindHandleRequestScheme>) -> impl Responder {
 	path.push(&req.handle);
 	if path.exists() {
 		// handle exists
-		let file_content = fs::read(&path).await.expect("File reading error");
+		let handle_file = File::open(&path).await;
+		if handle_file.is_err() { return_server_error!(); }
+		let mut handle_file = handle_file.unwrap();
+		let mut file_content = vec![];
+		
+		if handle_file.lock_shared().is_err() { return_server_error!(); }
+		
+		if handle_file.read_to_end(&mut file_content).await.is_err() {
+			handle_file.unlock().ok();
+			return_server_error!();
+		}
+		
+		if handle_file.unlock().is_err() { return_server_error!(); }
+		
 		if file_content.len() <= 64 { return_server_error!(); }
+		
 		let (_, handle_content) = file_content.split_at(32);
 		let (handle_name, handle_data) = handle_content.split_at(32);
 		let handle_name_string = encode(&handle_name);

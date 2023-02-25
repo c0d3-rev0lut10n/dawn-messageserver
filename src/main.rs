@@ -457,14 +457,29 @@ async fn delhandle(req: web::Path<DeleteHandleRequestScheme>, query: web::Query<
 	if path.exists() {
 		// verify password
 		let password_hash = openssl::sha::sha256(&query.password.as_bytes());
-		let saved_content = fs::read(&path).await;
-		if saved_content.is_err() { return_server_error!(); }
-		let saved_content = saved_content.unwrap();
+		
+		let handle_file = File::open(&path).await;
+		if handle_file.is_err() { return_server_error!(); }
+		let mut handle_file = handle_file.unwrap();
+		let mut saved_content = vec![];
+		
+		// Lock shared first to prevent a DOS attack on a handle that could result in the handle being unable to get read by who function
+		if handle_file.lock_shared().is_err() { return_server_error!(); }
+		
+		if handle_file.read_to_end(&mut saved_content).await.is_err() {
+			handle_file.unlock().ok();
+			return_server_error!();
+		}
+		
+		if handle_file.unlock().is_err() { return_server_error!(); }
+		
 		let (saved_hash, _) = saved_content.split_at(32);
 		// check if hash matches
 		if password_hash != saved_hash { return_client_error!("wrong password"); }
 		// delete handle
+		if handle_file.lock_exclusive().is_err() { return_server_error!(); }
 		if fs::remove_file(&path).await.is_err() { return_server_error!(); }
+		if handle_file.unlock().is_err() { return_server_error!(); }
 		return_zero!();
 	}
 	return_client_error!("handle not found");

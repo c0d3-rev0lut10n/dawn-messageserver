@@ -186,7 +186,7 @@ async fn d(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) ->
 	let (mdc, info) = file_bytes.split_at(4);
 	
 	// verify mdc
-	if query.mdc != encode(&mdc) {
+	if query.mdc != encode(mdc) {
 		return_client_error!("wrong mdc");
 	}
 	
@@ -213,7 +213,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		body.extend_from_slice(&chunk);
 	}
 	// catch empty messages
-	if body.len() == 0 { return_client_error!("empty body"); }
+	if body.is_empty() { return_client_error!("empty body"); }
 	// check if id is hex-string
 	if !IS_HEX.is_match(&req.id) { return_client_error!("invalid id"); }
 	// check if mdc in query string is valid
@@ -228,7 +228,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		if fs::create_dir(path).await.is_err() { return_server_error!(); }
 		// save number of messages to file
 		let mut msg_number_file = PathBuf::from(RUNTIME_DIR);
-		msg_number_file.push(&req.id.to_string());
+		msg_number_file.push(&req.id);
 		msg_number_file.push("msg_number");
 		let number_file = File::create(msg_number_file).await;
 		if number_file.is_err() { return_server_error!(); }
@@ -244,7 +244,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		if number_file.unlock().is_err() { return_server_error!(); }
 		
 		let mut msg_path = PathBuf::from(RUNTIME_DIR);
-		msg_path.push(&req.id.to_string());
+		msg_path.push(&req.id);
 		msg_path.push("0");
 		// write content and mdc to file
 		let file_bytes = decode(&query.mdc);
@@ -270,7 +270,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 	else {
 		// there are already messages for this id
 		let mut msg_number_path = PathBuf::from(RUNTIME_DIR);
-		msg_number_path.push(&req.id.to_string());
+		msg_number_path.push(&req.id);
 		msg_number_path.push("msg_number");
 		
 		// lock exclusively to prevent race conditions
@@ -286,14 +286,14 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 			return_server_error!();
 		}
 		
-		let msg_number = String::from_utf8_lossy(&number_bytes).to_owned().parse().unwrap_or(0) + 1;
+		let msg_number = String::from_utf8_lossy(&number_bytes).into_owned().parse().unwrap_or(0) + 1;
 		
 		if msg_number > 60000 {
 			if msg_number_file.unlock().is_err() { return_server_error!(); }
 			return_client_error!("Too many messages");
 		}
 		
-		if msg_number_file.write_all(&msg_number.to_string().as_bytes()).await.is_err() || msg_number_file.flush().await.is_err() {
+		if msg_number_file.write_all(msg_number.to_string().as_bytes()).await.is_err() || msg_number_file.flush().await.is_err() {
 			msg_number_file.unlock().ok();
 			return_server_error!();
 		}
@@ -301,7 +301,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		if msg_number_file.unlock().is_err() { return_server_error!(); }
 		
 		let mut msg_path = PathBuf::from(RUNTIME_DIR);
-		msg_path.push(&req.id.to_string());
+		msg_path.push(&req.id);
 		msg_path.push(&msg_number.to_string());
 		// write content and mdc to file
 		let file_bytes = decode(&query.mdc);
@@ -339,7 +339,7 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 		}
 		body.extend_from_slice(&chunk);
 	}
-	if body.len() == 0 {
+	if body.is_empty() {
 		return_client_error!("empty body");
 	}
 	// check if id is sucessfully decodable to bytes and has the right size
@@ -349,14 +349,14 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 	let id_bytes = id_decode.unwrap();
 	if id_bytes.len() != 32 { return_client_error!("invalid id length"); }
 	// check if query string is not empty
-	if &query.password == "" { return_client_error!("no password provided"); }
+	if query.password.is_empty() { return_client_error!("no password provided"); }
 	// check if handle has correct syntax
 	if !IS_HANDLE.is_match(&req.handle) { return_client_error!("incorrect handle syntax"); }
 	// get handle path, planned to use database in a later version
 	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push("handle");
 	path.push(&req.handle);
-	let password_hash = openssl::sha::sha256(&query.password.as_bytes());
+	let password_hash = openssl::sha::sha256(query.password.as_bytes());
 	if !path.exists() {
 		// handle is not used yet
 		let mut file_content = vec![];
@@ -439,7 +439,7 @@ async fn who(req: web::Path<FindHandleRequestScheme>) -> impl Responder {
 		
 		let (_, handle_content) = file_content.split_at(32);
 		let (handle_name, handle_data) = handle_content.split_at(32);
-		let handle_name_string = encode(&handle_name);
+		let handle_name_string = encode(handle_name);
 		return HttpResponse::Ok().insert_header(("X-ID", handle_name_string)).body(handle_data.to_vec());
 	}
 	return_zero!();
@@ -456,7 +456,7 @@ async fn delhandle(req: web::Path<DeleteHandleRequestScheme>, query: web::Query<
 	path.push(&req.handle);
 	if path.exists() {
 		// verify password
-		let password_hash = openssl::sha::sha256(&query.password.as_bytes());
+		let password_hash = openssl::sha::sha256(query.password.as_bytes());
 		
 		let handle_file = File::open(&path).await;
 		if handle_file.is_err() { return_server_error!(); }
@@ -521,7 +521,7 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 		
 		let (mdc, _) = file_bytes.split_at(4);
 		
-		if query.mdc == encode(&mdc) {
+		if query.mdc == encode(mdc) {
 			if message_file.write_all(&DELETED).await.is_err() || message_file.flush().await.is_err() {
 				message_file.unlock().ok();
 				return_server_error!();

@@ -220,12 +220,19 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 	if !IS_MDC.is_match(&query.mdc) { return_client_error!("invalid message detail code"); }
 	// get current time
 	let mut time = Utc::now().timestamp().to_le_bytes().to_vec();
+	
+	let msg_number;
+	
 	// get file path, planned to use database in a later version
 	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push(&req.id);
 	if !path.exists() {
 		// first message for id, therefore create directory
 		if fs::create_dir(path).await.is_err() { return_server_error!(); }
+		
+		// set message number
+		msg_number = 0;
+		
 		// save number of messages to file
 		let mut msg_number_file = PathBuf::from(RUNTIME_DIR);
 		msg_number_file.push(&req.id);
@@ -274,7 +281,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		msg_number_path.push("msg_number");
 		
 		// lock exclusively to prevent race conditions
-		let msg_number_file = OpenOptions::new().read(true).write(true).truncate(true).open(&msg_number_path).await;
+		let msg_number_file = OpenOptions::new().read(true).open(&msg_number_path).await;
 		if msg_number_file.is_err() { return_server_error!(); }
 		let mut msg_number_file = msg_number_file.unwrap();
 		
@@ -286,14 +293,15 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 			return_server_error!();
 		}
 		
-		let msg_number = String::from_utf8_lossy(&number_bytes).into_owned().parse().unwrap_or(0) + 1;
+		msg_number = String::from_utf8_lossy(&number_bytes).into_owned().parse().unwrap_or(0) + 1;
 		
 		if msg_number > 60000 {
 			if msg_number_file.unlock().is_err() { return_server_error!(); }
 			return_client_error!("Too many messages");
 		}
 		
-		if msg_number_file.write_all(msg_number.to_string().as_bytes()).await.is_err() || msg_number_file.flush().await.is_err() {
+		let truncate_number_file = OpenOptions::new().write(true).truncate(true).open(&msg_number_path).await;
+		if truncate_number_file.is_err() || truncate_number_file.unwrap().write_all(msg_number.to_string().as_bytes()).await.is_err() || msg_number_file.flush().await.is_err() {
 			msg_number_file.unlock().ok();
 			return_server_error!();
 		}
@@ -322,7 +330,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 			if msg_file.unlock().is_err() { return_server_error!(); }
 		}
 	}
-	return_zero!();
+	return HttpResponse::NoContent().insert_header(("X-MessageNumber", msg_number.to_string())).finish();
 }
 
 // set a handle for id called handle, or change it if it exists and correct password is provided via query string

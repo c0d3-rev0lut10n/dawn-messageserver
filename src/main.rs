@@ -43,6 +43,7 @@ lazy_static! {
 	static ref IS_HEX: Regex = Regex::new("^[0-9a-f]+$").unwrap();
 	static ref IS_HANDLE: Regex = Regex::new("^[0-9a-zA-Z_-]+$").unwrap();
 	static ref IS_MDC: Regex = Regex::new("^[0-9a-f]{8}$").unwrap();
+	static ref IS_INIT_SECRET: Regex = Regex::new("^[0-9a-zA-Z]{16}$").unwrap();
 	// pattern for deleted messages
 	static ref DELETED: Vec<u8> = vec![255];
 
@@ -101,6 +102,18 @@ struct SetHandleRequestScheme {
 #[derive(Deserialize)]
 struct HandlePasswordQuery {
 	password : String,
+}
+
+#[derive(Deserialize)]
+struct HandleEditQuery {
+	password : String,
+	allow_public_init: bool,
+	init_secret: String
+}
+
+#[derive(Deserialize)]
+struct HandleInfoQuery {
+	init_secret: String
 }
 
 #[derive(Deserialize)]
@@ -352,8 +365,9 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 }
 
 // set a handle for id called handle, or change it if it exists and correct password is provided via query string
+// the client can also control how init requests are handled: when allow_public_init is seet to false, only clients which know the init_secret can get the information via /who
 #[post("/sethandle/{id}/{handle}")]
-async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<HandlePasswordQuery>, mut payload : web::Payload) -> impl Responder {
+async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<HandleEditQuery>, mut payload : web::Payload) -> impl Responder {
 	let mut body = web::BytesMut::new();
 	while let Some(chunk) = payload.next().await {
 		if chunk.is_err() {
@@ -378,6 +392,16 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 	if query.password.is_empty() { return_client_error!("no password provided"); }
 	// check if handle has correct syntax
 	if !IS_HANDLE.is_match(&req.handle) { return_client_error!("incorrect handle syntax"); }
+	
+	// check if init_secret is valid
+	if !IS_INIT_SECRET.is_match(&query.init_secret) { return_client_error!("init secret invalid"); }
+	
+	// get allow_public_init
+	let allow_public_init = match query.allow_public_init {
+		true => 1u8,
+		false => 0u8
+	};
+	
 	// get handle path, planned to use database in a later version
 	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push("handle");
@@ -388,6 +412,8 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 		let mut file_content = vec![];
 		file_content.append(&mut password_hash.to_vec());
 		file_content.append(&mut id_bytes.to_vec());
+		file_content.append(&mut vec![allow_public_init]);
+		file_content.append(&mut query.init_secret.as_bytes().to_vec());
 		file_content.append(&mut body.to_vec());
 		let handle_file = File::create(&path).await;
 		if handle_file.is_err() { return_server_error!(); }
@@ -426,6 +452,8 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 		let mut file_content = vec![];
 		file_content.append(&mut password_hash.to_vec());
 		file_content.append(&mut id_bytes.to_vec());
+		file_content.append(&mut vec![allow_public_init]);
+		file_content.append(&mut query.init_secret.as_bytes().to_vec());
 		file_content.append(&mut body.to_vec());
 		if handle_file.write_all(&file_content).await.is_err() || handle_file.flush().await.is_err() {
 			handle_file.unlock().ok();
@@ -438,9 +466,13 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 
 // search for a handle
 #[get("/who/{handle}")]
-async fn who(req: web::Path<FindHandleRequestScheme>) -> impl Responder {
+async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<HandleInfoQuery>) -> impl Responder {
 	// check if handle has correct syntax
 	if !IS_HANDLE.is_match(&req.handle) { return_client_error!("invalid handle"); }
+	
+	// check if the init secret even matches the standard
+	if !IS_INIT_SECRET.is_match(&query.init_secret) { return_client_error!("invalid init_secret"); }
+	
 	// get handle path, planned to use database in a later version
 	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push("handle");
@@ -461,10 +493,17 @@ async fn who(req: web::Path<FindHandleRequestScheme>) -> impl Responder {
 		
 		if handle_file.unlock().is_err() { return_server_error!(); }
 		
-		if file_content.len() <= 64 { return_server_error!(); }
+		if file_content.len() <= 81 { return_server_error!(); }
 		
 		let (_, handle_content) = file_content.split_at(32);
 		let (handle_name, handle_data) = handle_content.split_at(32);
+		let (allow_public_init, handle_data) = handle_data.split_at(1);
+		let (init_secret, handle_data) = handle_data.split_at(16);
+		
+		// verify if init is allowed
+		if allow_public_init[0] != 1u8 && query.init_secret.as_bytes().to_vec() != init_secret {
+			return_client_error!("init not allowed");
+		}
 		let handle_name_string = encode(handle_name);
 		return HttpResponse::Ok().insert_header(("X-ID", handle_name_string)).body(handle_data.to_vec());
 	}

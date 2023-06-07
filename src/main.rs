@@ -430,7 +430,7 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 	}
 	else {
 		// handle is used, check if password matches
-		let handle_file = OpenOptions::new().read(true).write(true).truncate(true).open(&path).await;
+		let handle_file = OpenOptions::new().read(true).open(&path).await;
 		if handle_file.is_err() { return_server_error!(); }
 		let mut handle_file = handle_file.unwrap();
 		
@@ -455,7 +455,10 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 		file_content.append(&mut vec![allow_public_init]);
 		file_content.append(&mut query.init_secret.as_bytes().to_vec());
 		file_content.append(&mut body.to_vec());
-		if handle_file.write_all(&file_content).await.is_err() || handle_file.flush().await.is_err() {
+		let handle_file_writable = OpenOptions::new().write(true).truncate(true).open(&path).await;
+		if handle_file_writable.is_err() { return_server_error!(); }
+		let mut handle_file_writable = handle_file_writable.unwrap();
+		if handle_file_writable.write_all(&file_content).await.is_err() || handle_file_writable.flush().await.is_err() {
 			handle_file.unlock().ok();
 			return_server_error!();
 		}

@@ -477,7 +477,38 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 
 // add a key to a handle
 #[post("/addkey/{handle}")]
-async fn addkey(req: web::Path<AddKeyRequestScheme>, query: web::Query<HandlePasswordQuery>) -> impl Responder {
+async fn addkey(req: web::Path<AddKeyRequestScheme>, query: web::Query<HandlePasswordQuery>, mut payload: web::Payload) -> impl Responder {
+	
+	// check if handle has correct syntax
+	if !IS_HANDLE.is_match(&req.handle) { return_client_error!("invalid handle"); }
+	
+	// check if query string is not empty
+	if query.password.is_empty() { return_client_error!("no password provided"); }
+	
+	// get handle path, planned to use database in a later version
+	let mut path = PathBuf::from(RUNTIME_DIR);
+	path.push("handle");
+	path.push(&req.handle);
+	
+	if !path.exists() { return_client_error!("handle not found"); }
+	
+	let mut body = web::BytesMut::new();
+	while let Some(chunk) = payload.next().await {
+		if chunk.is_err() {
+			return_client_error!("network error");
+		};
+		let chunk = chunk.unwrap();
+		if (body.len() + chunk.len()) > MAX_SND_SIZE {
+			return_client_error!("request body over max upload size");
+		}
+		body.extend_from_slice(&chunk);
+	}
+	if body.is_empty() {
+		return_client_error!("empty body");
+	}
+	
+	
+	
 	return_zero!();
 }
 

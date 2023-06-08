@@ -407,37 +407,19 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 	path.push("handle");
 	path.push(&req.handle);
 	let password_hash = openssl::sha::sha256(query.password.as_bytes());
-	if !path.exists() {
-		// handle is not used yet
-		let mut file_content = vec![];
-		file_content.append(&mut password_hash.to_vec());
-		file_content.append(&mut id_bytes.to_vec());
-		file_content.append(&mut vec![allow_public_init]);
-		file_content.append(&mut query.init_secret.as_bytes().to_vec());
-		file_content.append(&mut body.to_vec());
-		let handle_file = File::create(&path).await;
-		if handle_file.is_err() { return_server_error!(); }
-		let mut handle_file = handle_file.unwrap();
-		
-		if handle_file.lock_exclusive().is_err() { return_server_error!(); }
-		
-		if handle_file.write_all(&file_content).await.is_err() || handle_file.flush().await.is_err() {
-			handle_file.unlock().ok();
-			return_server_error!();
-		}
-		
-		// create a directory to allow storing keys
-		path.pop();
-		path.push(&(String::from(&req.handle) + ".keys"));
-		if fs::create_dir(path).await.is_err() { return_server_error!(); }
-		
-		if handle_file.unlock().is_err() { return_server_error!(); }
-	}
-	else {
+	
+	// check if handle exists
+	let handle_already_taken = path.exists();
+	
+	let open_handle_file;
+	let mut handle_file;
+	
+	// check password if the handle is taken
+	if handle_already_taken {
 		// handle is used, check if password matches
-		let handle_file = OpenOptions::new().read(true).open(&path).await;
-		if handle_file.is_err() { return_server_error!(); }
-		let mut handle_file = handle_file.unwrap();
+		open_handle_file = OpenOptions::new().read(true).open(&path).await;
+		if open_handle_file.is_err() { return_server_error!(); }
+		handle_file = open_handle_file.unwrap();
 		
 		if handle_file.lock_exclusive().is_err() { return_server_error!(); }
 		
@@ -453,22 +435,38 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 			if handle_file.unlock().is_err() { return_server_error!(); }
 			return_client_error!("wrong password");
 		}
-		// write new content to file
-		let mut file_content = vec![];
-		file_content.append(&mut password_hash.to_vec());
-		file_content.append(&mut id_bytes.to_vec());
-		file_content.append(&mut vec![allow_public_init]);
-		file_content.append(&mut query.init_secret.as_bytes().to_vec());
-		file_content.append(&mut body.to_vec());
+		
+		// open file for overwriting
 		let handle_file_writable = OpenOptions::new().write(true).truncate(true).open(&path).await;
 		if handle_file_writable.is_err() { return_server_error!(); }
-		let mut handle_file_writable = handle_file_writable.unwrap();
-		if handle_file_writable.write_all(&file_content).await.is_err() || handle_file_writable.flush().await.is_err() {
-			handle_file.unlock().ok();
-			return_server_error!();
-		}
-		if handle_file.unlock().is_err() { return_server_error!(); }
+		handle_file = handle_file_writable.unwrap();
 	}
+	else {
+		open_handle_file = File::create(&path).await;
+		if open_handle_file.is_err() { return_server_error!(); }
+		handle_file = open_handle_file.unwrap();
+		
+		if handle_file.lock_exclusive().is_err() { return_server_error!(); }
+		
+		// create a directory to allow storing keys
+		path.pop();
+		path.push(&(String::from(&req.handle) + ".keys"));
+		if fs::create_dir(path).await.is_err() { return_server_error!(); }
+	}
+	
+	// write content to file
+	let mut file_content = vec![];
+	file_content.append(&mut password_hash.to_vec());
+	file_content.append(&mut id_bytes.to_vec());
+	file_content.append(&mut vec![allow_public_init]);
+	file_content.append(&mut query.init_secret.as_bytes().to_vec());
+	file_content.append(&mut body.to_vec());
+	if handle_file.write_all(&file_content).await.is_err() || handle_file.flush().await.is_err() {
+		handle_file.unlock().ok();
+		return_server_error!();
+	}
+	if handle_file.unlock().is_err() { return_server_error!(); }
+	
 	return_zero!();
 }
 

@@ -100,6 +100,11 @@ struct SetHandleRequestScheme {
 }
 
 #[derive(Deserialize)]
+struct AddKeyRequestScheme {
+	handle: String,
+}
+
+#[derive(Deserialize)]
 struct HandlePasswordQuery {
 	password : String,
 }
@@ -470,6 +475,12 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 	return_zero!();
 }
 
+// add a key to a handle
+#[post("/addkey/{handle}")]
+async fn addkey(req: web::Path<AddKeyRequestScheme>, query: web::Query<HandlePasswordQuery>) -> impl Responder {
+	return_zero!();
+}
+
 // search for a handle
 #[get("/who/{handle}")]
 async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<HandleInfoQuery>) -> impl Responder {
@@ -625,6 +636,7 @@ async fn main() -> std::io::Result<()> {
 			.service(d)
 			.service(snd)
 			.service(sethandle)
+			.service(addkey)
 			.service(who)
 			.service(del)
 			.service(delhandle)

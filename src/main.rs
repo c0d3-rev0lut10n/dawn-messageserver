@@ -426,6 +426,11 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 			return_server_error!();
 		}
 		
+		// create a directory to allow storing keys
+		path.pop();
+		path.push(&(String::from(&req.handle) + ".keys"));
+		if fs::create_dir(path).await.is_err() { return_server_error!(); }
+		
 		if handle_file.unlock().is_err() { return_server_error!(); }
 	}
 	else {

@@ -552,6 +552,13 @@ async fn delhandle(req: web::Path<DeleteHandleRequestScheme>, query: web::Query<
 		// delete handle
 		if handle_file.lock_exclusive().is_err() { return_server_error!(); }
 		if fs::remove_file(&path).await.is_err() { return_server_error!(); }
+		
+		// delete keys directory
+		path.pop();
+		path.push(&(String::from(&req.handle) + ".keys"));
+		
+		if fs::remove_dir_all(path).await.is_err() { return_server_error!(); }
+		
 		if handle_file.unlock().is_err() { return_server_error!(); }
 		return_zero!();
 	}

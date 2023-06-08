@@ -508,7 +508,26 @@ async fn addkey(req: web::Path<AddKeyRequestScheme>, query: web::Query<HandlePas
 		return_client_error!("empty body");
 	}
 	
+	let password_hash = openssl::sha::sha256(query.password.as_bytes());
 	
+	let open_handle_file = OpenOptions::new().read(true).open(&path).await;
+	if open_handle_file.is_err() { return_server_error!(); }
+	let mut handle_file = open_handle_file.unwrap();
+	
+	if handle_file.lock_shared().is_err() { return_server_error!(); }
+	
+	let mut saved_content = vec![];
+	if handle_file.read_to_end(&mut saved_content).await.is_err() {
+		handle_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	let (saved_hash, _) = saved_content.split_at(32);
+	// check if hash matches
+	if password_hash != saved_hash {
+		if handle_file.unlock().is_err() { return_server_error!(); }
+		return_client_error!("wrong password");
+	}
 	
 	return_zero!();
 }

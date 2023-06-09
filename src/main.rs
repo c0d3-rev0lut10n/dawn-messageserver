@@ -32,10 +32,10 @@ use std::array::TryFromSliceError;
 use fs4::tokio::AsyncFileExt;
 
 // constants, planned to be read from config file in a later version
-const RUNTIME_DIR : &str = "./runtime";
-const SERVER_ADDRESS : &str = "127.0.0.1";
-const SERVER_PORT : u16 = 8080;
-const MAX_SND_SIZE : usize = 256_000;
+const RUNTIME_DIR: &str = "./runtime";
+const SERVER_ADDRESS: &str = "127.0.0.1";
+const SERVER_PORT: u16 = 8080;
+const MAX_SND_SIZE: usize = 256_000;
 const SAVED_MSG_MINIMUM: usize = 12;
 
 lazy_static! {
@@ -79,24 +79,24 @@ macro_rules! return_zero {
 
 #[derive(Deserialize)]
 struct ReceiveRequestScheme {
-	id : String,
-	msg_number : u16,
+	id: String,
+	msg_number: u16,
 }
 
 #[derive(Deserialize)]
 struct SendRequestScheme {
-	id : String,
+	id: String,
 }
 
 #[derive(Deserialize)]
 struct MDCQuery {
-	mdc : String,
+	mdc: String,
 }
 
 #[derive(Deserialize)]
 struct SetHandleRequestScheme {
-	id : String,
-	handle : String,
+	id: String,
+	handle: String,
 }
 
 #[derive(Deserialize)]
@@ -106,12 +106,12 @@ struct AddKeyRequestScheme {
 
 #[derive(Deserialize)]
 struct HandlePasswordQuery {
-	password : String,
+	password: String,
 }
 
 #[derive(Deserialize)]
 struct HandleEditQuery {
-	password : String,
+	password: String,
 	allow_public_init: bool,
 	init_secret: String
 }
@@ -123,13 +123,13 @@ struct HandleInfoQuery {
 
 #[derive(Deserialize)]
 struct FindHandleRequestScheme {
-	handle : String,
+	handle: String,
 }
 
 #[derive(Deserialize)]
 struct DeleteMessageRequestScheme {
-	id : String,
-	msg_number : u16,
+	id: String,
+	msg_number: u16,
 }
 
 #[derive(Deserialize)]
@@ -227,7 +227,7 @@ async fn d(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) ->
 	}
 	
 	let (timestamp_bytes, _) = info.split_at(8);
-	let timestamp_slice : Result<[u8;8], TryFromSliceError> = timestamp_bytes.to_owned().as_slice().try_into();
+	let timestamp_slice: Result<[u8;8], TryFromSliceError> = timestamp_bytes.to_owned().as_slice().try_into();
 	if timestamp_slice.is_err() { return_server_error!(); }
 	let timestamp = i64::from_le_bytes(timestamp_slice.unwrap());
 	
@@ -236,7 +236,7 @@ async fn d(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) ->
 
 // send message to id with message detail code in query string and content in body
 #[post("/snd/{id}")]
-async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut payload : web::Payload) -> impl Responder {
+async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut payload: web::Payload) -> impl Responder {
 	let mut body = web::BytesMut::new();
 	while let Some(chunk) = payload.next().await {
 		if chunk.is_err() {
@@ -372,7 +372,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 // set a handle for id called handle, or change it if it exists and correct password is provided via query string
 // the client can also control how init requests are handled: when allow_public_init is seet to false, only clients which know the init_secret can get the information via /who
 #[post("/sethandle/{id}/{handle}")]
-async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<HandleEditQuery>, mut payload : web::Payload) -> impl Responder {
+async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<HandleEditQuery>, mut payload: web::Payload) -> impl Responder {
 	let mut body = web::BytesMut::new();
 	while let Some(chunk) = payload.next().await {
 		if chunk.is_err() {

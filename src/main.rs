@@ -347,24 +347,23 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		let mut msg_path = PathBuf::from(RUNTIME_DIR);
 		msg_path.push(&req.id);
 		msg_path.push(&msg_number.to_string());
+		
 		// write content and mdc to file
 		let file_bytes = decode(&query.mdc);
 		if file_bytes.is_err() { return_client_error!("Invalid message detail code"); }
-		else {
-			let mut file_bytes = file_bytes.unwrap();
-			file_bytes.append(&mut time);
-			file_bytes.append(&mut body.to_vec());
-			let mut msg_file = File::create(msg_path).await.expect("File creation error");
-			
-			if msg_file.lock_exclusive().is_err() { return_server_error!(); }
-						
-			if msg_file.write_all(&file_bytes).await.is_err() || msg_file.flush().await.is_err() {
-				msg_file.unlock().ok();
-				return_server_error!();
-			}
-			
-			if msg_file.unlock().is_err() { return_server_error!(); }
+		let mut file_bytes = file_bytes.unwrap();
+		file_bytes.append(&mut time);
+		file_bytes.append(&mut body.to_vec());
+		let mut msg_file = File::create(msg_path).await.expect("File creation error");
+		
+		if msg_file.lock_exclusive().is_err() { return_server_error!(); }
+					
+		if msg_file.write_all(&file_bytes).await.is_err() || msg_file.flush().await.is_err() {
+			msg_file.unlock().ok();
+			return_server_error!();
 		}
+		
+		if msg_file.unlock().is_err() { return_server_error!(); }
 	}
 	return HttpResponse::NoContent().insert_header(("X-MessageNumber", msg_number.to_string())).finish();
 }

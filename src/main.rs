@@ -544,6 +544,38 @@ async fn addkey(req: web::Path<AddKeyRequestScheme>, query: web::Query<HandlePas
 		return_client_error!("wrong password");
 	}
 	
+	path.pop();
+	path.push(&(String::from(&req.handle) + ".keys"));
+	path.push("key_number");
+	
+	// lock exclusively to prevent race conditions
+	let key_number_file = OpenOptions::new().read(true).open(&path).await;
+	if key_number_file.is_err() { return_server_error!(); }
+	let mut key_number_file = key_number_file.unwrap();
+	
+	if key_number_file.lock_exclusive().is_err() { return_server_error!(); }
+	
+	let mut key_number_bytes = vec![];
+	if key_number_file.read_to_end(&mut key_number_bytes).await.is_err() {
+		key_number_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	let key_number = String::from_utf8_lossy(&key_number_bytes).into_owned().parse().unwrap_or(0);
+	
+	if key_number >= 15 {
+		if key_number_file.unlock().is_err() { return_server_error!(); }
+		return_client_error!("all key slots full");
+	}
+	
+	let truncate_number_file = OpenOptions::new().write(true).truncate(true).open(&path).await;
+	if truncate_number_file.is_err() || truncate_number_file.unwrap().write_all((key_number + 1).to_string().as_bytes()).await.is_err() || key_number_file.flush().await.is_err() {
+		key_number_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	if key_number_file.unlock().is_err() { return_server_error!(); }
+	
 	return_zero!();
 }
 

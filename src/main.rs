@@ -562,7 +562,7 @@ async fn addkey(req: web::Path<AddKeyRequestScheme>, query: web::Query<HandlePas
 	
 	let key_number = String::from_utf8_lossy(&key_number_bytes).into_owned().parse().unwrap_or(0);
 	
-	if key_number >= 15 {
+	if key_number > 15 {
 		if key_number_file.unlock().is_err() { return_server_error!(); }
 		return_client_error!("all key slots full");
 	}
@@ -574,6 +574,20 @@ async fn addkey(req: web::Path<AddKeyRequestScheme>, query: web::Query<HandlePas
 	}
 	
 	if key_number_file.unlock().is_err() { return_server_error!(); }
+	
+	// save the key
+	path.pop();
+	path.push(key_number.to_string());
+	let mut key_file = File::create(&path).await.expect("File creation error");
+	
+	if key_file.lock_exclusive().is_err() { return_server_error!(); }
+				
+	if key_file.write_all(&body).await.is_err() || key_file.flush().await.is_err() {
+		key_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	if key_file.unlock().is_err() { return_server_error!(); }
 	
 	return_zero!();
 }

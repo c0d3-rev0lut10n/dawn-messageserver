@@ -626,7 +626,12 @@ async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<HandleIn
 		let (_, handle_content) = file_content.split_at(32);
 		let (handle_name, handle_data) = handle_content.split_at(32);
 		let (allow_public_init, handle_data) = handle_data.split_at(1);
-		let (init_secret, handle_data) = handle_data.split_at(16);
+		let (init_secret, _) = handle_data.split_at(16);
+		
+		// verify if init is allowed
+		if allow_public_init[0] != 1u8 && query.init_secret.as_bytes().to_vec() != init_secret {
+			return_client_error!("init not allowed");
+		}
 		
 		// navigate to the key_number file
 		path.pop();
@@ -652,15 +657,31 @@ async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<HandleIn
 			if key_number_file.unlock().is_err() { return_server_error!(); }
 			return_client_error!("all key slots empty");
 		}
+		let key_number = key_number - 1;
+		
+		let truncate_number_file = OpenOptions::new().write(true).truncate(true).open(&path).await;
+		if truncate_number_file.is_err() || truncate_number_file.unwrap().write_all((key_number).to_string().as_bytes()).await.is_err() || key_number_file.flush().await.is_err() {
+			key_number_file.unlock().ok();
+			return_server_error!();
+		}
+		
+		if key_number_file.unlock().is_err() { return_server_error!(); }
 		
 		// get the next available key
+		path.pop();
+		path.push(key_number.to_string());
 		
-		// verify if init is allowed
-		if allow_public_init[0] != 1u8 && query.init_secret.as_bytes().to_vec() != init_secret {
-			return_client_error!("init not allowed");
-		}
+		let key_file = File::open(&path).await;
+		if key_file.is_err() { return_server_error!(); }
+		let mut key_file = key_file.unwrap();
+		
+		let mut file_bytes = vec![];
+		if key_file.read_to_end(&mut file_bytes).await.is_err() { return_server_error!(); }
+		
+		if fs::remove_file(&path).await.is_err() { return_server_error!(); }
+		
 		let handle_name_string = encode(handle_name);
-		return HttpResponse::Ok().insert_header(("X-ID", handle_name_string)).body(handle_data.to_vec());
+		return HttpResponse::Ok().insert_header(("X-ID", handle_name_string)).body(file_bytes);
 	}
 	return_zero!();
 }

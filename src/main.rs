@@ -628,6 +628,33 @@ async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<HandleIn
 		let (allow_public_init, handle_data) = handle_data.split_at(1);
 		let (init_secret, handle_data) = handle_data.split_at(16);
 		
+		// navigate to the key_number file
+		path.pop();
+		path.push(&(String::from(&req.handle) + ".keys"));
+		path.push("key_number");
+		
+		// lock the file and get the current key number
+		let key_number_file = OpenOptions::new().read(true).open(&path).await;
+		if key_number_file.is_err() { return_server_error!(); }
+		let mut key_number_file = key_number_file.unwrap();
+		
+		if key_number_file.lock_exclusive().is_err() { return_server_error!(); }
+		
+		let mut key_number_bytes = vec![];
+		if key_number_file.read_to_end(&mut key_number_bytes).await.is_err() {
+			key_number_file.unlock().ok();
+			return_server_error!();
+		}
+		
+		let key_number = String::from_utf8_lossy(&key_number_bytes).into_owned().parse().unwrap_or(0);
+		
+		if key_number < 1 {
+			if key_number_file.unlock().is_err() { return_server_error!(); }
+			return_client_error!("all key slots empty");
+		}
+		
+		// get the next available key
+		
 		// verify if init is allowed
 		if allow_public_init[0] != 1u8 && query.init_secret.as_bytes().to_vec() != init_secret {
 			return_client_error!("init not allowed");

@@ -742,47 +742,43 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push(&req.id);
 	path.push(&req.msg_number.to_string());
-	if path.is_file() {
-		let message_file = OpenOptions::new().read(true).write(true).truncate(true).open(&path).await;
-		
-		if message_file.is_err() { return_server_error!(); }
-		let mut message_file = message_file.unwrap();
-		
-		if message_file.lock_exclusive().is_err() { return_server_error!(); }
-		
-		let mut file_bytes = vec![];
-		if message_file.read_to_end(&mut file_bytes).await.is_err() {
+	if !path.is_file() { return_client_error!("message does not exist"); }
+	let message_file = OpenOptions::new().read(true).write(true).truncate(true).open(&path).await;
+	
+	if message_file.is_err() { return_server_error!(); }
+	let mut message_file = message_file.unwrap();
+	
+	if message_file.lock_exclusive().is_err() { return_server_error!(); }
+	
+	let mut file_bytes = vec![];
+	if message_file.read_to_end(&mut file_bytes).await.is_err() {
+		message_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	if file_bytes.len() <= SAVED_MSG_MINIMUM {
+		if message_file.unlock().is_err() { return_server_error!(); }
+		if file_bytes == DELETED.to_vec() {
+			// message got deleted
+			let response = vec![255];
+			return HttpResponse::Ok().content_type("application/octet-stream").body(response);
+		}
+		return_server_error!();
+	}
+	
+	let (mdc, _) = file_bytes.split_at(4);
+	
+	if query.mdc == encode(mdc) {
+		if message_file.write_all(&DELETED).await.is_err() || message_file.flush().await.is_err() {
 			message_file.unlock().ok();
 			return_server_error!();
 		}
-		
-		if file_bytes.len() <= SAVED_MSG_MINIMUM {
-			if message_file.unlock().is_err() { return_server_error!(); }
-			if file_bytes == DELETED.to_vec() {
-				// message got deleted
-				let response = vec![255];
-				return HttpResponse::Ok().content_type("application/octet-stream").body(response);
-			}
-			return_server_error!();
-		}
-		
-		let (mdc, _) = file_bytes.split_at(4);
-		
-		if query.mdc == encode(mdc) {
-			if message_file.write_all(&DELETED).await.is_err() || message_file.flush().await.is_err() {
-				message_file.unlock().ok();
-				return_server_error!();
-			}
-			if message_file.unlock().is_err() { return_server_error!(); }
-			return_zero!();
-		}
-		else {
-			if message_file.unlock().is_err() { return_server_error!(); }
-			return_client_error!("wrong mdc");
-		}
+		if message_file.unlock().is_err() { return_server_error!(); }
+		return_zero!();
 	}
 	else {
-		return_client_error!("message does not exist");
+		if message_file.unlock().is_err() { return_server_error!(); }
+		return_client_error!("wrong mdc");
 	}
 }
 

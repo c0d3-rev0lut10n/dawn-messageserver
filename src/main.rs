@@ -490,7 +490,6 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 }
 
 // add a key to a handle
-// UNDER DEVELOPMENT
 #[post("/addkey/{handle}")]
 async fn addkey(req: web::Path<AddKeyRequestScheme>, query: web::Query<HandlePasswordQuery>, mut payload: web::Payload) -> impl Responder {
 	

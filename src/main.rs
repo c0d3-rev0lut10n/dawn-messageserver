@@ -370,22 +370,9 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 
 // set a handle for id called handle, or change it if it exists and correct password is provided via query string
 // the client can also control how init requests are handled: when allow_public_init is seet to false, only clients which know the init_secret can get the information via /who
-#[post("/sethandle/{id}/{handle}")]
-async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<HandleEditQuery>, mut payload: web::Payload) -> impl Responder {
-	let mut body = web::BytesMut::new();
-	while let Some(chunk) = payload.next().await {
-		if chunk.is_err() {
-			return_client_error!("network error");
-		};
-		let chunk = chunk.unwrap();
-		if (body.len() + chunk.len()) > MAX_SND_SIZE {
-			return_client_error!("request body over max upload size");
-		}
-		body.extend_from_slice(&chunk);
-	}
-	if body.is_empty() {
-		return_client_error!("empty body");
-	}
+#[get("/sethandle/{id}/{handle}")]
+async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<HandleEditQuery>) -> impl Responder {
+	
 	// check if id is sucessfully decodable to bytes and has the right size
 	if !IS_HEX.is_match(&req.id) { return_client_error!("invalid id"); }
 	let id_decode = decode(&req.id);
@@ -479,7 +466,7 @@ async fn sethandle(req: web::Path<SetHandleRequestScheme>, query: web::Query<Han
 	file_content.append(&mut id_bytes.to_vec());
 	file_content.append(&mut vec![allow_public_init]);
 	file_content.append(&mut query.init_secret.as_bytes().to_vec());
-	file_content.append(&mut body.to_vec());
+	
 	if handle_file.write_all(&file_content).await.is_err() || handle_file.flush().await.is_err() {
 		handle_file.unlock().ok();
 		return_server_error!();
@@ -620,7 +607,7 @@ async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<HandleIn
 		
 		if handle_file.unlock().is_err() { return_server_error!(); }
 		
-		if file_content.len() <= 81 { return_server_error!(); }
+		if file_content.len() < 81 { return_server_error!(); }
 		
 		let (_, handle_content) = file_content.split_at(32);
 		let (handle_name, handle_data) = handle_content.split_at(32);

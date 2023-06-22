@@ -607,12 +607,11 @@ async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<HandleIn
 		
 		if handle_file.unlock().is_err() { return_server_error!(); }
 		
-		if file_content.len() < 81 { return_server_error!(); }
+		if file_content.len() != 81 { return_server_error!(); }
 		
 		let (_, handle_content) = file_content.split_at(32);
 		let (handle_name, handle_data) = handle_content.split_at(32);
-		let (allow_public_init, handle_data) = handle_data.split_at(1);
-		let (init_secret, _) = handle_data.split_at(16);
+		let (allow_public_init, init_secret) = handle_data.split_at(1);
 		
 		// verify if init is allowed
 		if allow_public_init[0] != 1u8 && query.init_secret.as_bytes().to_vec() != init_secret {

@@ -35,7 +35,7 @@ mkdir runtime/handle
 
 # set a handle (private init)
 notice "testing sethandle"
-curl -v -X POST 'http://localhost:8080/sethandle/1234121212121212121212121212121212121212121212121212121212121212/qwerty?password=password&allow_public_init=false&init_secret=blahblahblahblah' --data-binary "@./test-data/test1" || error "sethandle failed"
+curl -v 'http://localhost:8080/sethandle/1234121212121212121212121212121212121212121212121212121212121212/qwerty?password=password&allow_public_init=false&init_secret=blahblahblahblah' || error "sethandle failed"
 
 # add a key to the handle
 notice "adding key to handle"

@@ -768,6 +768,13 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 	}
 }
 
+// just return that this is in fact a Dawn server and an API version (used for URL checking in clients)
+#[get("/dawn")]
+async fn dawn() -> impl Responder {
+	let response = "dawn:0.0.1\n".as_bytes();
+	return HttpResponse::Ok().content_type("text/plain").body(response);
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
 	HttpServer::new(|| {
@@ -780,6 +787,7 @@ async fn main() -> std::io::Result<()> {
 			.service(who)
 			.service(del)
 			.service(delhandle)
+			.service(dawn)
 	})
 	.bind((SERVER_ADDRESS, SERVER_PORT))?
 	.run()

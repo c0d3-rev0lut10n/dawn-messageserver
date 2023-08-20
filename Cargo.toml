@@ -11,7 +11,7 @@ actix-web = { version = "*" }
 regex = { version = "*" }
 openssl = { version = "*", features = ["vendored"]}
 hex = { version = "*" }
-serde = { version = "*" , features = ["derive"]}
+serde = { version = "<=1.0.171" , features = ["derive"]}
 lazy_static = { version = "*" }
 futures = { version = "*" }
 chrono = { version = "*" }

@@ -36,7 +36,7 @@ const RUNTIME_DIR: &str = "./runtime";
 const SERVER_ADDRESS: &str = "127.0.0.1";
 const SERVER_PORT: u16 = 8080;
 const MAX_SND_SIZE: usize = 256_000;
-const SAVED_MSG_MINIMUM: usize = 12;
+const SAVED_MSG_MINIMUM: usize = 20;
 
 lazy_static! {
 	// globally defined regex patterns
@@ -174,12 +174,12 @@ async fn rcv(req: web::Path<ReceiveRequestScheme>) -> impl Responder {
 		}
 		return_server_error!();
 	}
-	let (_, message) = file_bytes.split_at(12);
+	let (_, message) = file_bytes.split_at(SAVED_MSG_MINIMUM);
 	
 	return_bytes!(message.to_vec());
 }
 
-// get details for a message, currently only the timestamp
+// get details for a message, currently the timestamp it was sent and the timestamp it was marked as read
 #[get("/d/{id}/{msg_number}")]
 async fn d(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) -> impl Responder {
 	// check if id is hex-string
@@ -226,12 +226,31 @@ async fn d(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) ->
 		return_client_error!("wrong mdc");
 	}
 	
-	let (timestamp_bytes, _) = info.split_at(8);
-	let timestamp_slice: Result<[u8;8], TryFromSliceError> = timestamp_bytes.to_owned().as_slice().try_into();
-	if timestamp_slice.is_err() { return_server_error!(); }
-	let timestamp = i64::from_le_bytes(timestamp_slice.unwrap());
+	// split off timestamps
+	let (timestamps_bytes, _) = info.split_at(16);
+	let (sent_timestamp_bytes, read_timestamp_bytes) = timestamps_bytes.split_at(8);
 	
-	return HttpResponse::NoContent().insert_header(("X-Timestamp", timestamp.to_string())).finish();
+	// parse 'sent' timestamp
+	let sent_timestamp_slice: Result<[u8;8], TryFromSliceError> = sent_timestamp_bytes.to_owned().as_slice().try_into();
+	if sent_timestamp_slice.is_err() { return_server_error!(); }
+	let sent_timestamp = i64::from_le_bytes(sent_timestamp_slice.unwrap());
+	
+	// parse 'read' timestamp
+	let read_timestamp_slice: Result<[u8;8], TryFromSliceError> = read_timestamp_bytes.to_owned().as_slice().try_into();
+	if read_timestamp_slice.is_err() { return_server_error!(); }
+	let read_timestamp_slice = read_timestamp_slice.unwrap();
+	
+	// respond to the request
+	let mut response = HttpResponse::NoContent();
+	response.insert_header(("X-Sent", sent_timestamp.to_string()));
+	if read_timestamp_slice == [0u8;8] {
+		// message was never marked as read
+		return response.finish();
+	}
+	let read_timestamp = i64::from_le_bytes(read_timestamp_slice);
+
+	response.insert_header(("X-Read", read_timestamp.to_string()));
+	response.finish()
 }
 
 // send message to id with message detail code in query string and content in body
@@ -256,6 +275,8 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 	if !IS_MDC.is_match(&query.mdc) { return_client_error!("invalid message detail code"); }
 	// get current time
 	let mut time = Utc::now().timestamp().to_le_bytes().to_vec();
+	// prepare the placeholder for the time read
+	let mut read_time_placeholder = [0u8;8].to_vec();
 	
 	let msg_number;
 	
@@ -295,6 +316,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		else {
 			let mut file_bytes = file_bytes.unwrap();
 			file_bytes.append(&mut time);
+			file_bytes.append(&mut read_time_placeholder);
 			file_bytes.append(&mut body.to_vec());
 			let msg_file = File::create(msg_path).await;
 			if msg_file.is_err() { return_server_error!(); }
@@ -353,6 +375,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		if file_bytes.is_err() { return_client_error!("Invalid message detail code"); }
 		let mut file_bytes = file_bytes.unwrap();
 		file_bytes.append(&mut time);
+		file_bytes.append(&mut read_time_placeholder);
 		file_bytes.append(&mut body.to_vec());
 		let mut msg_file = File::create(msg_path).await.expect("File creation error");
 		

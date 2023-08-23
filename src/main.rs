@@ -253,6 +253,96 @@ async fn d(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) ->
 	response.finish()
 }
 
+// mark a message as read
+#[get("/read/{id}/{msg_number}")]
+async fn read(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) -> impl Responder {
+	// check if id is hex-string
+	if !IS_HEX.is_match(&req.id) { return_client_error!("parsing error"); }
+	
+	// check if message detail code is valid
+	if !IS_MDC.is_match(&query.mdc) { return_client_error!("invalid mdc"); }
+	
+	let mut path = PathBuf::from(RUNTIME_DIR);
+	path.push(&req.id);
+	path.push(&req.msg_number.to_string());
+	if !path.is_file() {
+		// message does not exist
+		return_zero!();
+	}
+	
+	// message does exist
+	let message_file = File::open(&path).await;
+	if message_file.is_err() { return_server_error!(); }
+	let mut message_file = message_file.unwrap();
+	
+	if message_file.lock_exclusive().is_err() { return_server_error!(); } // lock exclusive as we will write to the file
+	
+	let mut file_bytes = vec![];
+	if message_file.read_to_end(&mut file_bytes).await.is_err() {
+		message_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	if file_bytes.len() <= SAVED_MSG_MINIMUM {
+		message_file.unlock().ok();
+		if file_bytes == DELETED.to_vec() {
+			// message got deleted
+			let response = vec![255];
+			return HttpResponse::Ok().content_type("application/octet-stream").body(response);
+		}
+		return_server_error!();
+	}
+	let (mdc, info) = file_bytes.split_at(4);
+	
+	// verify mdc
+	if query.mdc != encode(mdc) {
+		message_file.unlock().ok();
+		return_client_error!("wrong mdc");
+	}
+	
+	// split off timestamp
+	let (timestamps_bytes, message) = info.split_at(16);
+	let (sent_timestamp_bytes, read_timestamp_bytes) = timestamps_bytes.split_at(8);
+	
+	// parse 'read' timestamp
+	let read_timestamp_slice: Result<[u8;8], TryFromSliceError> = read_timestamp_bytes.to_owned().as_slice().try_into();
+	if read_timestamp_slice.is_err() {
+		message_file.unlock().ok();
+		return_server_error!();
+	}
+	let read_timestamp_slice = read_timestamp_slice.unwrap();
+	
+	if read_timestamp_slice != [0u8;8] {
+		// message is already marked as read
+		message_file.unlock().ok();
+		return_client_error!("message was already read");
+	}
+	
+	let mut read_timestamp = Utc::now().timestamp().to_le_bytes().to_vec();
+	
+	let mut new_file_bytes = mdc.to_vec();
+	new_file_bytes.append(&mut sent_timestamp_bytes.to_vec());
+	new_file_bytes.append(&mut read_timestamp);
+	new_file_bytes.append(&mut message.to_vec());
+	let new_file = OpenOptions::new().write(true).truncate(true).open(&path).await;
+	
+	if new_file.is_err() {
+		message_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	let mut new_file = new_file.unwrap();
+	
+	if new_file.write_all(&new_file_bytes).await.is_err() || new_file.flush().await.is_err() {
+		message_file.unlock().ok();
+		return_server_error!();
+	}
+			
+	if message_file.unlock().is_err() { return_server_error!(); }
+	
+	return_zero!();
+}
+
 // send message to id with message detail code in query string and content in body
 #[post("/snd/{id}")]
 async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut payload: web::Payload) -> impl Responder {
@@ -804,6 +894,7 @@ async fn main() -> std::io::Result<()> {
 		App::new()
 			.service(rcv)
 			.service(d)
+			.service(read)
 			.service(snd)
 			.service(sethandle)
 			.service(addkey)

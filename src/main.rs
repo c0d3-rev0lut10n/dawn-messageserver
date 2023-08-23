@@ -241,7 +241,7 @@ async fn d(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) ->
 	let read_timestamp_slice = read_timestamp_slice.unwrap();
 	
 	// respond to the request
-	let mut response = HttpResponse::NoContent();
+	let mut response = HttpResponse::Ok();
 	response.insert_header(("X-Sent", sent_timestamp.to_string()));
 	if read_timestamp_slice == [0u8;8] {
 		// message was never marked as read

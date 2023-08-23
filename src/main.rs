@@ -169,8 +169,7 @@ async fn rcv(req: web::Path<ReceiveRequestScheme>) -> impl Responder {
 	if file_bytes.len() <= SAVED_MSG_MINIMUM {
 		if file_bytes == DELETED.to_vec() {
 			// message got deleted
-			let response = vec![255];
-			return HttpResponse::Ok().content_type("application/octet-stream").body(response);
+			return HttpResponse::NoContent().insert_header(("X-Deleted", "true")).finish();
 		}
 		return_server_error!();
 	}
@@ -214,8 +213,7 @@ async fn d(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) ->
 	if file_bytes.len() <= SAVED_MSG_MINIMUM {
 		if file_bytes == DELETED.to_vec() {
 			// message got deleted
-			let response = vec![255];
-			return HttpResponse::Ok().content_type("application/octet-stream").body(response);
+			return HttpResponse::NoContent().insert_header(("X-Deleted", "true")).finish();
 		}
 		return_server_error!();
 	}
@@ -287,8 +285,7 @@ async fn read(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>)
 		message_file.unlock().ok();
 		if file_bytes == DELETED.to_vec() {
 			// message got deleted
-			let response = vec![255];
-			return HttpResponse::Ok().content_type("application/octet-stream").body(response);
+			return HttpResponse::NoContent().insert_header(("X-Deleted", "true")).finish();
 		}
 		return_server_error!();
 	}
@@ -859,8 +856,7 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 		if message_file.unlock().is_err() { return_server_error!(); }
 		if file_bytes == DELETED.to_vec() {
 			// message got deleted
-			let response = vec![255];
-			return HttpResponse::Ok().content_type("application/octet-stream").body(response);
+			return HttpResponse::NoContent().insert_header(("X-Deleted", "true")).finish();
 		}
 		return_server_error!();
 	}

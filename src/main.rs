@@ -337,7 +337,7 @@ async fn read(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>)
 			
 	if message_file.unlock().is_err() { return_server_error!(); }
 	
-	return_zero!();
+	HttpResponse::Ok().finish()
 }
 
 // send message to id with message detail code in query string and content in body

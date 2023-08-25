@@ -464,7 +464,10 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		file_bytes.append(&mut time);
 		file_bytes.append(&mut read_time_placeholder);
 		file_bytes.append(&mut body.to_vec());
-		let mut msg_file = File::create(msg_path).await.expect("File creation error");
+		
+		let msg_file = File::create(msg_path).await;
+		if msg_file.is_err() { return_server_error!(); }
+		let mut msg_file = msg_file.unwrap();
 		
 		if msg_file.lock_exclusive().is_err() { return_server_error!(); }
 					

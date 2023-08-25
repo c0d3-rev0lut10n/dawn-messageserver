@@ -149,3 +149,21 @@ Possible responses:
 
 	*Something is wrong with the server. This could i.e. be a permission problem in the runtime directory.*
 
+### Send a message
+
+You can send messages by using the `POST` `/snd/{id}?mdc={mdc}` endpoint. The message detail code is generated client-side and can be chosen arbitrarily. The encrypted message is sent in the `POST` request body.
+
+Possible responses:
+
+* `204 No Content`
+
+	*The message was sent successfully. The message ID it got assigned can be found in the header* `X-MessageNumber`*.*
+
+* `400 Bad Request`
+
+	*A client side error occured, for example: your request parameters were invalid, your message was too big, there are already too many messages*
+
+* `500 Internal Server Error`
+
+	*Something is wrong with the server. This could i.e. be a permission problem in the runtime directory.*
+

@@ -71,7 +71,7 @@ The official Dawn main server has the base URL `https://messageserver.dawn-priva
 
 The endpoint `GET` `/dawn` simply returns a version string.
 
-Possible responses:
+#### Possible responses:
 
 * `200 OK`
 
@@ -81,7 +81,7 @@ Possible responses:
 
 The endpoint `GET` `/rcv/{id}/{msg_number}` is used to receive messages. Replace *{id}* with the temporary ID you want to receive a message for, and ask for the next message number you didn't already receive using *{msg_number}*. If you did not request any message so far, start with number 0. When you send messages to an ID, simply save the returned message number as you won't need to receive your own message ;)
 
-Possible responses:
+#### Possible responses:
 
 * `200 OK`
 
@@ -103,7 +103,7 @@ Possible responses:
 
 The endpoint `GET` `/d/{id}/{msg_number}?mdc={mdc}` can give you details about a message. You need to provide the ID and message number the same way you do when receiving messages. Additionally, to verify your authorization to get those details, you need to provide the message detail code (which is transmitted as a part of the message you received/sent) by replacing the placeholder {mdc} with it.
 
-Possible responses:
+#### Possible responses:
 
 * `200 OK`
 
@@ -131,7 +131,7 @@ Possible responses:
 
 The endpoint `GET` `/read/{id}/{msg_number}?mdc={mdc}` allows you to mark a message you received as read. The placeholders are used identically in comparison to the `/d/{id}/{msg_number}?mdc={mdc}` endpoint.
 
-Possible responses:
+#### Possible responses:
 
 * `200 OK`
 
@@ -153,7 +153,7 @@ Possible responses:
 
 You can send messages by using the `POST` `/snd/{id}?mdc={mdc}` endpoint. The message detail code is generated client-side and can be chosen arbitrarily. The encrypted message is sent in the `POST` request body.
 
-Possible responses:
+#### Possible responses:
 
 * `204 No Content`
 
@@ -171,7 +171,7 @@ Possible responses:
 
 You can set a handle for any ID (normally, it is an ID specifically used for init requests) by using the `GET` `/sethandle/{id}/{handle}?password={password}&allow_public_init={public_init}&init_secret={init_secret}`. The same endpoint can be used to edit an existing handle, in which case you need to know the correct handle password.
 
-Parameters:
+#### Parameters:
 
 * `id`: the ID the handle should point to
 
@@ -183,7 +183,7 @@ Parameters:
 
 * `init_secret`: a string that is necessary to ask for an init key if `public_init` is set to `false`
 
-Possible responses:
+#### Possible responses:
 
 * `204 No Content`
 

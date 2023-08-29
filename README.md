@@ -167,3 +167,33 @@ Possible responses:
 
 	*Something is wrong with the server. This could i.e. be a permission problem in the runtime directory.*
 
+### Set/edit a handle
+
+You can set a handle for any ID (normally, it is an ID specifically used for init requests) by using the `GET` `/sethandle/{id}/{handle}?password={password}&allow_public_init={public_init}&init_secret={init_secret}`. The same endpoint can be used to edit an existing handle, in which case you need to know the correct handle password.
+
+Parameters:
+
+* `id`: the ID the handle should point to
+
+* `handle`: the name of the handle (alphanumeric characters, dashes and underscores are allowed)
+
+* `password`: the handle password. If you create a new handle, you can set this to any string you want. If you want to edit a handle, you need to provide the password that was used to create the handle previously.
+
+* `public_init`: boolean value that decides whether or not people need to know the `init_secret` in order to ask for an init key
+
+* `init_secret`: a string that is necessary to ask for an init key if `public_init` is set to `false`
+
+Possible responses:
+
+* `204 No Content`
+
+	*The request was completed successfully*
+
+* `400 Bad Request`
+
+	*One or more of the parameters the client supplied were invalid*
+
+* `500 Internal Server Error`
+
+	*Something is wrong with the server. This could i.e. be a permission problem in the runtime directory.*
+

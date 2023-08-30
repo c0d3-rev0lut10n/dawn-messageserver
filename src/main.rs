@@ -704,84 +704,84 @@ async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<HandleIn
 	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push("handle");
 	path.push(&req.handle);
-	if path.exists() {
-		// handle exists
-		let handle_file = File::open(&path).await;
-		if handle_file.is_err() { return_server_error!(); }
-		let mut handle_file = handle_file.unwrap();
-		let mut file_content = vec![];
-		
-		if handle_file.lock_shared().is_err() { return_server_error!(); }
-		
-		if handle_file.read_to_end(&mut file_content).await.is_err() {
-			handle_file.unlock().ok();
-			return_server_error!();
-		}
-		
-		if handle_file.unlock().is_err() { return_server_error!(); }
-		
-		if file_content.len() != 81 { return_server_error!(); }
-		
-		let (_, handle_content) = file_content.split_at(32);
-		let (handle_name, handle_data) = handle_content.split_at(32);
-		let (allow_public_init, init_secret) = handle_data.split_at(1);
-		
-		// verify if init is allowed
-		if allow_public_init[0] != 1u8 && query.init_secret.as_bytes().to_vec() != init_secret {
-			return_client_error!("init not allowed");
-		}
-		
-		// navigate to the key_number file
-		path.pop();
-		path.push(&(String::from(&req.handle) + ".keys"));
-		path.push("key_number");
-		
-		// lock the file and get the current key number
-		let key_number_file = OpenOptions::new().read(true).open(&path).await;
-		if key_number_file.is_err() { return_server_error!(); }
-		let mut key_number_file = key_number_file.unwrap();
-		
-		if key_number_file.lock_exclusive().is_err() { return_server_error!(); }
-		
-		let mut key_number_bytes = vec![];
-		if key_number_file.read_to_end(&mut key_number_bytes).await.is_err() {
-			key_number_file.unlock().ok();
-			return_server_error!();
-		}
-		
-		let key_number = String::from_utf8_lossy(&key_number_bytes).into_owned().parse().unwrap_or(0);
-		
-		if key_number < 1 {
-			if key_number_file.unlock().is_err() { return_server_error!(); }
-			return_client_error!("all key slots empty");
-		}
-		let key_number = key_number - 1;
-		
-		let truncate_number_file = OpenOptions::new().write(true).truncate(true).open(&path).await;
-		if truncate_number_file.is_err() || truncate_number_file.unwrap().write_all((key_number).to_string().as_bytes()).await.is_err() || key_number_file.flush().await.is_err() {
-			key_number_file.unlock().ok();
-			return_server_error!();
-		}
-		
-		if key_number_file.unlock().is_err() { return_server_error!(); }
-		
-		// get the next available key
-		path.pop();
-		path.push(key_number.to_string());
-		
-		let key_file = File::open(&path).await;
-		if key_file.is_err() { return_server_error!(); }
-		let mut key_file = key_file.unwrap();
-		
-		let mut file_bytes = vec![];
-		if key_file.read_to_end(&mut file_bytes).await.is_err() { return_server_error!(); }
-		
-		if fs::remove_file(&path).await.is_err() { return_server_error!(); }
-		
-		let handle_name_string = encode(handle_name);
-		return HttpResponse::Ok().insert_header(("X-ID", handle_name_string)).body(file_bytes);
+	if !path.exists() {
+		return_zero!();
 	}
-	return_zero!();
+	// handle exists
+	let handle_file = File::open(&path).await;
+	if handle_file.is_err() { return_server_error!(); }
+	let mut handle_file = handle_file.unwrap();
+	let mut file_content = vec![];
+	
+	if handle_file.lock_shared().is_err() { return_server_error!(); }
+	
+	if handle_file.read_to_end(&mut file_content).await.is_err() {
+		handle_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	if handle_file.unlock().is_err() { return_server_error!(); }
+	
+	if file_content.len() != 81 { return_server_error!(); }
+	
+	let (_, handle_content) = file_content.split_at(32);
+	let (handle_name, handle_data) = handle_content.split_at(32);
+	let (allow_public_init, init_secret) = handle_data.split_at(1);
+	
+	// verify if init is allowed
+	if allow_public_init[0] != 1u8 && query.init_secret.as_bytes().to_vec() != init_secret {
+		return_client_error!("init not allowed");
+	}
+	
+	// navigate to the key_number file
+	path.pop();
+	path.push(&(String::from(&req.handle) + ".keys"));
+	path.push("key_number");
+	
+	// lock the file and get the current key number
+	let key_number_file = OpenOptions::new().read(true).open(&path).await;
+	if key_number_file.is_err() { return_server_error!(); }
+	let mut key_number_file = key_number_file.unwrap();
+	
+	if key_number_file.lock_exclusive().is_err() { return_server_error!(); }
+	
+	let mut key_number_bytes = vec![];
+	if key_number_file.read_to_end(&mut key_number_bytes).await.is_err() {
+		key_number_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	let key_number = String::from_utf8_lossy(&key_number_bytes).into_owned().parse().unwrap_or(0);
+	
+	if key_number < 1 {
+		if key_number_file.unlock().is_err() { return_server_error!(); }
+		return_client_error!("all key slots empty");
+	}
+	let key_number = key_number - 1;
+	
+	let truncate_number_file = OpenOptions::new().write(true).truncate(true).open(&path).await;
+	if truncate_number_file.is_err() || truncate_number_file.unwrap().write_all((key_number).to_string().as_bytes()).await.is_err() || key_number_file.flush().await.is_err() {
+		key_number_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	if key_number_file.unlock().is_err() { return_server_error!(); }
+	
+	// get the next available key
+	path.pop();
+	path.push(key_number.to_string());
+	
+	let key_file = File::open(&path).await;
+	if key_file.is_err() { return_server_error!(); }
+	let mut key_file = key_file.unwrap();
+	
+	let mut file_bytes = vec![];
+	if key_file.read_to_end(&mut file_bytes).await.is_err() { return_server_error!(); }
+	
+	if fs::remove_file(&path).await.is_err() { return_server_error!(); }
+	
+	let handle_name_string = encode(handle_name);
+	return HttpResponse::Ok().insert_header(("X-ID", handle_name_string)).body(file_bytes);
 }
 
 // delete a handle

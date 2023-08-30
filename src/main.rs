@@ -729,7 +729,7 @@ async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<HandleIn
 	let (allow_public_init, init_secret) = handle_data.split_at(1);
 	
 	// verify if init is allowed
-	if allow_public_init[0] != 1u8 && query.init_secret.as_bytes().to_vec() != init_secret {
+	if allow_public_init[0] != 1u8 && &query.init_secret.as_bytes() != &init_secret {
 		return_client_error!("init not allowed");
 	}
 	

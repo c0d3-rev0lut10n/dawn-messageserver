@@ -698,7 +698,7 @@ async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<HandleIn
 	if !IS_HANDLE.is_match(&req.handle) { return_client_error!("invalid handle"); }
 	
 	// check if the init secret even matches the standard
-	if !IS_INIT_SECRET.is_match(&query.init_secret) { return_client_error!("invalid init_secret"); }
+	if !IS_INIT_SECRET.is_match(&query.init_secret) && &query.init_secret != "" { return_client_error!("invalid init_secret"); }
 	
 	// get handle path, planned to use database in a later version
 	let mut path = PathBuf::from(RUNTIME_DIR);

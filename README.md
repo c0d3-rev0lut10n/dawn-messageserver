@@ -43,6 +43,14 @@ The following guide is an example of the procedure on a Linux system.
 
 	`./target/release/dawn-messageserver-n2g`
 
+## Run
+
+In order to work properly, the binary needs to have the `runtime` directory and a subdirectory called `handle` at the currect location.
+
+This is currently `./runtime` (from the PWD), it will be configurable in a later version.
+
+Also, make sure that the user you use to execute the binary has sufficient permissions to read and write any files below the `runtime` directory.
+
 
 ## Update
 

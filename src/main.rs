@@ -366,7 +366,6 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 	let mut read_time_placeholder = [0u8;8].to_vec();
 	
 	let msg_number;
-	let mut msg_number_file;
 	
 	// get file path, planned to use database in a later version
 	let mut path = PathBuf::from(RUNTIME_DIR);
@@ -384,7 +383,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		number_file.push("msg_number");
 		let msg_number_file_result = File::create(number_file).await;
 		if msg_number_file_result.is_err() { return_server_error!(); }
-		msg_number_file = msg_number_file_result.unwrap();
+		let mut msg_number_file = msg_number_file_result.unwrap();
 		
 		if msg_number_file.lock_exclusive().is_err() { return_server_error!(); }
 		

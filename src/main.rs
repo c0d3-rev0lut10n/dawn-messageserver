@@ -366,6 +366,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 	let mut read_time_placeholder = [0u8;8].to_vec();
 	
 	let msg_number;
+	let mut msg_number_file;
 	
 	// get file path, planned to use database in a later version
 	let mut path = PathBuf::from(RUNTIME_DIR);
@@ -378,46 +379,21 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		msg_number = 0;
 		
 		// save number of messages to file
-		let mut msg_number_file = PathBuf::from(RUNTIME_DIR);
-		msg_number_file.push(&req.id);
-		msg_number_file.push("msg_number");
-		let number_file = File::create(msg_number_file).await;
-		if number_file.is_err() { return_server_error!(); }
-		let mut number_file = number_file.unwrap();
+		let mut number_file = PathBuf::from(RUNTIME_DIR);
+		number_file.push(&req.id);
+		number_file.push("msg_number");
+		let msg_number_file_result = File::create(number_file).await;
+		if msg_number_file_result.is_err() { return_server_error!(); }
+		msg_number_file = msg_number_file_result.unwrap();
 		
-		if number_file.lock_exclusive().is_err() { return_server_error!(); }
+		if msg_number_file.lock_exclusive().is_err() { return_server_error!(); }
 		
-		if number_file.write_all("0".as_bytes()).await.is_err() {
-			number_file.unlock().ok();
+		if msg_number_file.write_all("0".as_bytes()).await.is_err() {
+			msg_number_file.unlock().ok();
 			return_server_error!();
 		}
 		
-		if number_file.unlock().is_err() { return_server_error!(); }
-		
-		let mut msg_path = PathBuf::from(RUNTIME_DIR);
-		msg_path.push(&req.id);
-		msg_path.push("0");
-		// write content and mdc to file
-		let file_bytes = decode(&query.mdc);
-		if file_bytes.is_err() { return_client_error!("invalid message detail code"); }
-		else {
-			let mut file_bytes = file_bytes.unwrap();
-			file_bytes.append(&mut time);
-			file_bytes.append(&mut read_time_placeholder);
-			file_bytes.append(&mut body.to_vec());
-			let msg_file = File::create(msg_path).await;
-			if msg_file.is_err() { return_server_error!(); }
-			let mut msg_file = msg_file.unwrap();
-			
-			if msg_file.lock_exclusive().is_err() { return_server_error!(); }
-			
-			if msg_file.write_all(&file_bytes).await.is_err() || msg_file.flush().await.is_err() {
-				msg_file.unlock().ok();
-				return_server_error!();
-			}
-			
-			if msg_file.unlock().is_err() { return_server_error!(); }
-		}
+		if msg_number_file.unlock().is_err() { return_server_error!(); }	
 	}
 	else {
 		// there are already messages for this id
@@ -452,32 +428,32 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		}
 		
 		if msg_number_file.unlock().is_err() { return_server_error!(); }
-		
-		let mut msg_path = PathBuf::from(RUNTIME_DIR);
-		msg_path.push(&req.id);
-		msg_path.push(&msg_number.to_string());
-		
-		// write content and mdc to file
-		let file_bytes = decode(&query.mdc);
-		if file_bytes.is_err() { return_client_error!("Invalid message detail code"); }
-		let mut file_bytes = file_bytes.unwrap();
-		file_bytes.append(&mut time);
-		file_bytes.append(&mut read_time_placeholder);
-		file_bytes.append(&mut body.to_vec());
-		
-		let msg_file = File::create(msg_path).await;
-		if msg_file.is_err() { return_server_error!(); }
-		let mut msg_file = msg_file.unwrap();
-		
-		if msg_file.lock_exclusive().is_err() { return_server_error!(); }
-					
-		if msg_file.write_all(&file_bytes).await.is_err() || msg_file.flush().await.is_err() {
-			msg_file.unlock().ok();
-			return_server_error!();
-		}
-		
-		if msg_file.unlock().is_err() { return_server_error!(); }
 	}
+	
+	let mut msg_path = PathBuf::from(RUNTIME_DIR);
+	msg_path.push(&req.id);
+	msg_path.push(&msg_number.to_string());
+	// write content and mdc to file
+	let file_bytes = decode(&query.mdc);
+	if file_bytes.is_err() { return_client_error!("invalid message detail code"); }
+	
+	let mut file_bytes = file_bytes.unwrap();
+	file_bytes.append(&mut time);
+	file_bytes.append(&mut read_time_placeholder);
+	file_bytes.append(&mut body.to_vec());
+	let msg_file = File::create(msg_path).await;
+	if msg_file.is_err() { return_server_error!(); }
+	let mut msg_file = msg_file.unwrap();
+	
+	if msg_file.lock_exclusive().is_err() { return_server_error!(); }
+	
+	if msg_file.write_all(&file_bytes).await.is_err() || msg_file.flush().await.is_err() {
+		msg_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	if msg_file.unlock().is_err() { return_server_error!(); }
+	
 	return HttpResponse::NoContent().insert_header(("X-MessageNumber", msg_number.to_string())).finish();
 }
 

@@ -824,8 +824,8 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 	
 	if message_file.lock_exclusive().is_err() { return_server_error!(); }
 	
-	let mut file_bytes = vec![];
-	if message_file.read_to_end(&mut file_bytes).await.is_err() {
+	let mut file_bytes = Vec::with_capacity(1usize + SAVED_MSG_MINIMUM);
+	if message_file.read_exact(&mut file_bytes).await.is_err() {
 		message_file.unlock().ok();
 		return_server_error!();
 	}

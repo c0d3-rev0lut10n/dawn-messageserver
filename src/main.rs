@@ -21,6 +21,7 @@ extern crate lazy_static;
 
 use actix_web::{get, post, delete, web, App, HttpResponse, HttpServer, Responder};
 use std::path::PathBuf;
+use std::time::Duration;
 use tokio::fs::{self, File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use regex::Regex;
@@ -865,7 +866,7 @@ async fn dawn() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-	let cache = Cache::<String, Vec<String>>::builder().max_capacity(100_000).build();
+	let cache = Cache::<String, Vec<String>>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
 	HttpServer::new(move || {
 		App::new()
 			.app_data(web::Data::new(cache.clone()))

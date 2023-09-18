@@ -19,61 +19,61 @@
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-pub(crate) struct ReceiveRequestScheme {
+pub struct ReceiveRequestScheme {
 	pub id: String,
 	pub msg_number: u16,
 }
 
 #[derive(Deserialize)]
-pub(crate) struct SendRequestScheme {
+pub struct SendRequestScheme {
 	pub id: String,
 }
 
 #[derive(Deserialize)]
-pub(crate) struct MDCQuery {
+pub struct MDCQuery {
 	pub mdc: String,
 }
 
 #[derive(Deserialize)]
-pub(crate) struct SetHandleRequestScheme {
+pub struct SetHandleRequestScheme {
 	pub id: String,
 	pub handle: String,
 }
 
 #[derive(Deserialize)]
-pub(crate) struct AddKeyRequestScheme {
+pub struct AddKeyRequestScheme {
 	pub handle: String,
 }
 
 #[derive(Deserialize)]
-pub(crate) struct HandlePasswordQuery {
+pub struct HandlePasswordQuery {
 	pub password: String,
 }
 
 #[derive(Deserialize)]
-pub(crate) struct HandleEditQuery {
+pub struct HandleEditQuery {
 	pub password: String,
 	pub allow_public_init: bool,
 	pub init_secret: String
 }
 
 #[derive(Deserialize)]
-pub(crate) struct HandleInfoQuery {
+pub struct HandleInfoQuery {
 	pub init_secret: String
 }
 
 #[derive(Deserialize)]
-pub(crate) struct FindHandleRequestScheme {
+pub struct FindHandleRequestScheme {
 	pub handle: String,
 }
 
 #[derive(Deserialize)]
-pub(crate) struct DeleteMessageRequestScheme {
+pub struct DeleteMessageRequestScheme {
 	pub id: String,
 	pub msg_number: u16,
 }
 
 #[derive(Deserialize)]
-pub(crate) struct DeleteHandleRequestScheme {
+pub struct DeleteHandleRequestScheme {
 	pub handle: String,
 }

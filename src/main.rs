@@ -30,6 +30,7 @@ use futures::StreamExt;
 use chrono::prelude::*;
 use std::array::TryFromSliceError;
 use fs4::tokio::AsyncFileExt;
+use moka::future::Cache;
 
 // constants, planned to be read from config file in a later version
 const RUNTIME_DIR: &str = "./runtime";
@@ -864,8 +865,10 @@ async fn dawn() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-	HttpServer::new(|| {
+	let cache = Cache::<String, Vec<String>>::builder().max_capacity(100_000).build();
+	HttpServer::new(move || {
 		App::new()
+			.app_data(web::Data::new(cache.clone()))
 			.service(rcv)
 			.service(d)
 			.service(read)

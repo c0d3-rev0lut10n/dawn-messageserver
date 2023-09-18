@@ -19,6 +19,9 @@
 #[macro_use]
 extern crate lazy_static;
 
+mod request_schemes;
+use request_schemes::*;
+
 use actix_web::{get, post, delete, web, App, HttpResponse, HttpServer, Responder};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -77,66 +80,6 @@ macro_rules! return_zero {
 	() => {
 		return HttpResponse::NoContent().finish()
 	}
-}
-
-#[derive(Deserialize)]
-struct ReceiveRequestScheme {
-	id: String,
-	msg_number: u16,
-}
-
-#[derive(Deserialize)]
-struct SendRequestScheme {
-	id: String,
-}
-
-#[derive(Deserialize)]
-struct MDCQuery {
-	mdc: String,
-}
-
-#[derive(Deserialize)]
-struct SetHandleRequestScheme {
-	id: String,
-	handle: String,
-}
-
-#[derive(Deserialize)]
-struct AddKeyRequestScheme {
-	handle: String,
-}
-
-#[derive(Deserialize)]
-struct HandlePasswordQuery {
-	password: String,
-}
-
-#[derive(Deserialize)]
-struct HandleEditQuery {
-	password: String,
-	allow_public_init: bool,
-	init_secret: String
-}
-
-#[derive(Deserialize)]
-struct HandleInfoQuery {
-	init_secret: String
-}
-
-#[derive(Deserialize)]
-struct FindHandleRequestScheme {
-	handle: String,
-}
-
-#[derive(Deserialize)]
-struct DeleteMessageRequestScheme {
-	id: String,
-	msg_number: u16,
-}
-
-#[derive(Deserialize)]
-struct DeleteHandleRequestScheme {
-	handle: String,
 }
 
 #[derive(Clone)]

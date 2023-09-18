@@ -139,6 +139,22 @@ struct DeleteHandleRequestScheme {
 	handle: String,
 }
 
+#[derive(Clone)]
+struct Listener {
+	subscriptions: Vec<u128>,
+}
+
+#[derive(Clone)]
+struct Subscription {
+	messages: Vec<MessageInfo>,
+}
+
+#[derive(Clone)]
+struct MessageInfo {
+	id: String,
+	message_number: u8,
+}
+
 // receive specified message
 #[get("/rcv/{id}/{msg_number}")]
 async fn rcv(req: web::Path<ReceiveRequestScheme>) -> impl Responder {
@@ -857,6 +873,12 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 	}
 }
 
+// subscribe to multiple IDs to request all their messages in one request
+#[post("/subscribe")]
+async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cache<u128, Subscription>>, listener_cache: web::Data<Cache<String, Listener>>) -> impl Responder {
+	return_server_error!();
+}
+
 // just return that this is in fact a Dawn server and an API version (used for URL checking in clients)
 #[get("/dawn")]
 async fn dawn() -> impl Responder {
@@ -866,10 +888,12 @@ async fn dawn() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-	let cache = Cache::<String, Vec<String>>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
+	let subscription_cache = Cache::<u128, Subscription>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
+	let listener_cache = Cache::<String, Listener>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
 	HttpServer::new(move || {
 		App::new()
-			.app_data(web::Data::new(cache.clone()))
+			.app_data(web::Data::new(subscription_cache.clone()))
+			.app_data(web::Data::new(listener_cache.clone()))
 			.service(rcv)
 			.service(d)
 			.service(read)
@@ -879,6 +903,7 @@ async fn main() -> std::io::Result<()> {
 			.service(who)
 			.service(del)
 			.service(delhandle)
+			.service(subscribe)
 			.service(dawn)
 	})
 	.bind((SERVER_ADDRESS, SERVER_PORT))?

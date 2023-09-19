@@ -477,7 +477,62 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 // subscribe to multiple IDs to request all their messages in one request
 #[post("/subscribe")]
 async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cache<u128, Subscription>>, listener_cache: web::Data<Cache<String, Listener>>) -> impl Responder {
-	return_server_error!();
+	let mut body = web::BytesMut::new();
+	while let Some(chunk) = payload.next().await {
+		if chunk.is_err() {
+			return_client_error!("network error");
+		};
+		let chunk = chunk.unwrap();
+		if (body.len() + chunk.len()) > MAX_SND_SIZE {
+			return_client_error!("request body over max upload size");
+		}
+		body.extend_from_slice(&chunk);
+	}
+	// delay execution to avoid easily filling up cache space
+	tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+	
+	let body_text = String::from_utf8(body.to_vec());
+	if body_text.is_err() {
+		return_client_error!("body is not valid utf-8");
+	}
+	let body_text = body_text.unwrap();
+	
+	let mut id_split = body_text.split("\n");
+	let subscription = Subscription {
+		messages: Vec::new()
+	};
+	
+	let mut subscription_id = None;
+	for _ in 1..20 {
+		let id: u128 = rand::random();
+		if !subscription_cache.contains_key(&id) {
+			subscription_cache.insert(id, subscription).await;
+			subscription_id = Some(id);
+			break;
+		}
+	}
+	if subscription_id.is_none() { return_server_error!(); }
+	let subscription_id = subscription_id.unwrap();
+	
+	while let Some(id) = id_split.next() {
+		if !IS_HEX.is_match(id) {
+			return_client_error!("body contains an invalid ID");
+		}
+		let listener = listener_cache.get(id).await;
+		if listener.is_some() {
+			let mut listener = listener.unwrap();
+			listener.subscriptions.push(subscription_id);
+			listener_cache.insert(id.to_string(), listener).await;
+		}
+		else {
+			let listener = Listener {
+				subscriptions: vec![subscription_id]
+			};
+			listener_cache.insert(id.to_string(), listener).await;
+		}
+	}
+	let subscription_id = subscription_id.to_string().as_bytes().to_vec();
+	return HttpResponse::Ok().body(subscription_id);
 }
 
 // just return that this is in fact a Dawn server and an API version (used for URL checking in clients)

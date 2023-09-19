@@ -9,6 +9,7 @@ license = "GPL-3.0-or-later"
 [dependencies]
 actix-web = { version = "*" }
 regex = { version = "*" }
+rand = { version = "*" }
 openssl = { version = "*", features = ["vendored"]}
 hex = { version = "*" }
 serde = { version = "=1.0.171" , features = ["derive"]}

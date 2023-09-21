@@ -205,3 +205,20 @@ You can set a handle for any ID (normally, it is an ID specifically used for ini
 
 	*Something is wrong with the server. This could i.e. be a permission problem in the runtime directory.*
 
+### Add keys to a handle
+
+To add keys to a handle, the `POST` `/addkey/{handle}?password={password}` can be used.
+
+#### Possible responses
+
+* `204 No Content`
+
+	*The request was completed successfully*
+
+* `400 Bad Request`
+
+	*One or more of the parameters the client supplied were invalid. This can also mean that the handle has already all key slots filled.*
+
+* `500 Internal Server Error`
+
+	*Something is wrong with the server. This could i.e. be a permission problem in the runtime directory.*

@@ -558,11 +558,15 @@ async fn dawn() -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
 	let subscription_cache = Cache::<u128, Subscription>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
+	let subscription_lock_cache = Cache::<u128, bool>::builder().time_to_live(Duration::from_secs(60)).build(); // true means exclusive, false means shared, entries need to be cleared when unlocking
 	let listener_cache = Cache::<String, Listener>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
+	let listener_lock_cache = Cache::<String, bool>::builder().time_to_live(Duration::from_secs(60)).build(); // true means exclusive, false means shared, entries need to be cleared when unlocking
 	HttpServer::new(move || {
 		App::new()
 			.app_data(web::Data::new(subscription_cache.clone()))
+			.app_data(web::Data::new(subscription_lock_cache.clone()))
 			.app_data(web::Data::new(listener_cache.clone()))
+			.app_data(web::Data::new(listener_lock_cache.clone()))
 			.service(rcv)
 			.service(d)
 			.service(read)

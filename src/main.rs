@@ -101,7 +101,7 @@ struct Subscription {
 #[derive(Clone)]
 struct MessageInfo {
 	id: String,
-	message_number: u8,
+	message_number: u16,
 }
 
 // receive specified message
@@ -309,7 +309,7 @@ async fn read(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>)
 
 // send message to id with message detail code in query string and content in body
 #[post("/snd/{id}")]
-async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut payload: web::Payload) -> impl Responder {
+async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut payload: web::Payload, subscription_cache: web::Data<Cache<u128, Subscription>>, listener_cache: web::Data<Cache<String, Listener>>) -> impl Responder {
 	let mut body = web::BytesMut::new();
 	while let Some(chunk) = payload.next().await {
 		if chunk.is_err() {
@@ -419,6 +419,19 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 	}
 	
 	if msg_file.unlock().is_err() { return_server_error!(); }
+	
+	// add message to subscriptions if there are any
+	if let Some(sub_list) = listener_cache.get(&req.id).await {
+		for subscription_id in sub_list.subscriptions {
+			if let Some(mut subscription) = subscription_cache.get(&subscription_id).await {
+				subscription.messages.push(MessageInfo{
+					id: String::from(&req.id),
+					message_number: msg_number
+				});
+				subscription_cache.insert(subscription_id, subscription).await;
+			}
+		}
+	}
 	
 	return HttpResponse::NoContent().insert_header(("X-MessageNumber", msg_number.to_string())).finish();
 }

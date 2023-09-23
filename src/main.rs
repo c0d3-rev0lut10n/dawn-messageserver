@@ -26,6 +26,7 @@ use handles::*;
 use request_schemes::*;
 
 use actix_web::{get, post, delete, web, App, HttpResponse, HttpServer, Responder};
+use std::sync::{Arc, RwLock};
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::fs::{self, File, OpenOptions};
@@ -88,7 +89,7 @@ macro_rules! return_zero {
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Listener {
 	subscriptions: Vec<u128>,
 }
@@ -489,7 +490,7 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 
 // subscribe to multiple IDs to request all their messages in one request
 #[post("/subscribe")]
-async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cache<u128, Subscription>>, listener_cache: web::Data<Cache<String, Listener>>) -> impl Responder {
+async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cache<u128, Subscription>>, listener_cache: web::Data<Cache<String, Arc<RwLock<Listener>>>>) -> impl Responder {
 	let mut body = web::BytesMut::new();
 	while let Some(chunk) = payload.next().await {
 		if chunk.is_err() {
@@ -531,17 +532,22 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 		if !IS_HEX.is_match(id) {
 			return_client_error!("body contains an invalid ID");
 		}
-		let listener = listener_cache.get(id).await;
-		if listener.is_some() {
-			let mut listener = listener.unwrap();
-			listener.subscriptions.push(subscription_id);
-			listener_cache.insert(id.to_string(), listener).await;
-		}
-		else {
-			let listener = Listener {
-				subscriptions: vec![subscription_id]
-			};
-			listener_cache.insert(id.to_string(), listener).await;
+		
+		let mut fresh = false;
+		let listener = listener_cache.get_with(id.to_string(), async {
+			fresh = true;
+			Arc::new(
+				RwLock::new(
+					Listener {
+						subscriptions: vec![subscription_id]
+					}
+				)
+			)
+		}).await;
+		if !fresh {
+			let mut listener = listener.write().unwrap();
+			(*listener).subscriptions.push(subscription_id);
+			// listener gets unlocked here
 		}
 	}
 	let subscription_id = subscription_id.to_string().as_bytes().to_vec();
@@ -558,15 +564,11 @@ async fn dawn() -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
 	let subscription_cache = Cache::<u128, Subscription>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
-	let subscription_lock_cache = Cache::<u128, bool>::builder().time_to_live(Duration::from_secs(60)).build(); // true means exclusive, false means shared, entries need to be cleared when unlocking
-	let listener_cache = Cache::<String, Listener>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
-	let listener_lock_cache = Cache::<String, bool>::builder().time_to_live(Duration::from_secs(60)).build(); // true means exclusive, false means shared, entries need to be cleared when unlocking
+	let listener_cache = Cache::<String, Arc<RwLock<Listener>>>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
 	HttpServer::new(move || {
 		App::new()
 			.app_data(web::Data::new(subscription_cache.clone()))
-			.app_data(web::Data::new(subscription_lock_cache.clone()))
 			.app_data(web::Data::new(listener_cache.clone()))
-			.app_data(web::Data::new(listener_lock_cache.clone()))
 			.service(rcv)
 			.service(d)
 			.service(read)

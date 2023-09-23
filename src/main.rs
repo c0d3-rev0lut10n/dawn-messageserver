@@ -310,7 +310,7 @@ async fn read(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>)
 
 // send message to id with message detail code in query string and content in body
 #[post("/snd/{id}")]
-async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut payload: web::Payload, subscription_cache: web::Data<Cache<u128, Subscription>>, listener_cache: web::Data<Cache<String, Listener>>) -> impl Responder {
+async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut payload: web::Payload, subscription_cache: web::Data<Cache<u128, Arc<RwLock<Subscription>>>>, listener_cache: web::Data<Cache<String, Arc<RwLock<Listener>>>>) -> impl Responder {
 	let mut body = web::BytesMut::new();
 	while let Some(chunk) = payload.next().await {
 		if chunk.is_err() {
@@ -423,13 +423,14 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 	
 	// add message to subscriptions if there are any
 	if let Some(sub_list) = listener_cache.get(&req.id).await {
-		for subscription_id in sub_list.subscriptions {
-			if let Some(mut subscription) = subscription_cache.get(&subscription_id).await {
-				subscription.messages.push(MessageInfo{
+		let sub_list = sub_list.read().unwrap();
+		for subscription_id in &sub_list.subscriptions {
+			if let Some(subscription) = subscription_cache.get(&subscription_id).await {
+				let mut subscription = subscription.write().unwrap();
+				(*subscription).messages.push(MessageInfo{
 					id: String::from(&req.id),
 					message_number: msg_number
 				});
-				subscription_cache.insert(subscription_id, subscription).await;
 			}
 		}
 	}
@@ -490,7 +491,7 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 
 // subscribe to multiple IDs to request all their messages in one request
 #[post("/subscribe")]
-async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cache<u128, Subscription>>, listener_cache: web::Data<Cache<String, Arc<RwLock<Listener>>>>) -> impl Responder {
+async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cache<u128, Arc<RwLock<Subscription>>>>, listener_cache: web::Data<Cache<String, Arc<RwLock<Listener>>>>) -> impl Responder {
 	let mut body = web::BytesMut::new();
 	while let Some(chunk) = payload.next().await {
 		if chunk.is_err() {
@@ -512,9 +513,13 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 	let body_text = body_text.unwrap();
 	
 	let mut id_split = body_text.split("\n");
-	let subscription = Subscription {
-		messages: Vec::new()
-	};
+	let subscription = Arc::new(
+		RwLock::new(
+			Subscription {
+				messages: Vec::new()
+			}
+		)
+	);
 	
 	let mut subscription_id = None;
 	for _ in 1..20 {
@@ -563,7 +568,7 @@ async fn dawn() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-	let subscription_cache = Cache::<u128, Subscription>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
+	let subscription_cache = Cache::<u128, Arc<RwLock<Subscription>>>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
 	let listener_cache = Cache::<String, Arc<RwLock<Listener>>>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
 	HttpServer::new(move || {
 		App::new()

@@ -559,6 +559,13 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 	return HttpResponse::Ok().body(subscription_id);
 }
 
+// return all messages associated with a subscription after sub_msg_number
+#[get("/subscription/{subscription_id}/{sub_msg_number}")]
+async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscription_cache: web::Data<Cache<u128, Arc<RwLock<Subscription>>>>) -> impl Responder {
+	// this will need a lot of structural changes: message detail codes need to be predictable by the recipient in order to authentify for message details directly as well, and in /subscribe it has to be possible to use "start message numbers" for every ID, which would automatically add any previously sent messages after the specified number to the subscription
+	return_server_error!();
+}
+
 // just return that this is in fact a Dawn server and an API version (used for URL checking in clients)
 #[get("/dawn")]
 async fn dawn() -> impl Responder {

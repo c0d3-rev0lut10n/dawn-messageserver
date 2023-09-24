@@ -77,3 +77,9 @@ pub struct DeleteMessageRequestScheme {
 pub struct DeleteHandleRequestScheme {
 	pub handle: String,
 }
+
+#[derive(Deserialize)]
+pub struct SubscriptionRequestScheme {
+	pub subscription_id: String,
+	pub sub_msg_number: u32,
+}

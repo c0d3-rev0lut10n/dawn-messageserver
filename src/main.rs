@@ -20,12 +20,15 @@
 extern crate lazy_static;
 
 mod handles;
+mod internal;
 mod request_schemes;
 
 use handles::*;
+use internal::*;
 use request_schemes::*;
 
 use actix_web::{get, post, delete, web, App, HttpResponse, HttpServer, Responder};
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -89,17 +92,15 @@ macro_rules! return_zero {
 	}
 }
 
-#[derive(Clone, Debug)]
 struct Listener {
 	subscriptions: Vec<u128>,
 }
 
-#[derive(Clone)]
 struct Subscription {
 	messages: Vec<MessageInfo>,
+	mdc_map: HashMap<String, Vec<u8>>
 }
 
-#[derive(Clone)]
 struct MessageInfo {
 	id: String,
 	message_number: u16,
@@ -512,11 +513,15 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 	}
 	let body_text = body_text.unwrap();
 	
-	let mut id_split = body_text.split("\n");
+	let id_split = body_text.split("\n").collect::<Vec<&str>>();
+	if id_split.len() > 100 {
+		return_client_error!("A subscription may only contain up to 100 IDs");
+	}
 	let subscription = Arc::new(
 		RwLock::new(
 			Subscription {
-				messages: Vec::new()
+				messages: Vec::new(),
+				mdc_map: HashMap::new()
 			}
 		)
 	);
@@ -525,7 +530,7 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 	for _ in 1..20 {
 		let id: u128 = rand::random();
 		if !subscription_cache.contains_key(&id) {
-			subscription_cache.insert(id, subscription).await;
+			subscription_cache.insert(id, subscription.clone()).await;
 			subscription_id = Some(id);
 			break;
 		}
@@ -533,7 +538,25 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 	if subscription_id.is_none() { return_server_error!(); }
 	let subscription_id = subscription_id.unwrap();
 	
-	while let Some(id) = id_split.next() {
+	let mut sub = subscription.write().unwrap();
+	
+	for id_line in id_split {
+		let mut id_info = id_line.split(" ");
+		let id = id_info.next().unwrap();
+		let mdc = match id_info.next() {
+			Some(mdc) => mdc,
+			None => {
+				return_client_error!("one or more IDs did not have an MDC associated with them");
+			}
+		};
+		let start_msg_id = match id_info.next() {
+			Some(start_msg_id) => match start_msg_id.parse::<u16>() {
+				Ok(res) => res,
+				Err(_) => 0u16
+			}
+			None => 0u16
+		};
+		
 		if !IS_HEX.is_match(id) {
 			return_client_error!("body contains an invalid ID");
 		}

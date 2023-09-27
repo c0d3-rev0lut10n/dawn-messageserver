@@ -561,6 +561,20 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 			return_client_error!("body contains an invalid ID");
 		}
 		
+		if !IS_MDC.is_match(mdc) {
+			return_client_error!("one or more IDs did have an incorrectly formatted MDC associated with them");
+		}
+		
+		(*sub).mdc_map.insert(id.to_string(), decode(mdc).unwrap());
+		
+		let mut id_path = PathBuf::from(RUNTIME_DIR);
+		id_path.push(id);
+		id_path.push("msg_number");
+		if id_path.is_file() {
+			// There are already messages present for this ID. Add all messages between the requested start message and the latest message to the subscription
+			
+		}
+		
 		let mut fresh = false;
 		let listener = listener_cache.get_with(id.to_string(), async {
 			fresh = true;

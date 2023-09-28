@@ -572,7 +572,27 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 		id_path.push("msg_number");
 		if id_path.is_file() {
 			// There are already messages present for this ID. Add all messages between the requested start message and the latest message to the subscription
+			let msg_number_file = File::open(&id_path).await;
+			if msg_number_file.is_err() { return_server_error!(); }
+			let mut msg_number_file = msg_number_file.unwrap();
+			if msg_number_file.lock_shared().is_err() { return_server_error!(); }
+			let mut number_bytes = vec![];
+			if msg_number_file.read_to_end(&mut number_bytes).await.is_err() {
+				msg_number_file.unlock().ok();
+				return_server_error!();
+			}
 			
+			let msg_number = String::from_utf8_lossy(&number_bytes).into_owned().parse().unwrap_or(0);
+			if msg_number >= start_msg_id {
+				for i in start_msg_id..msg_number {
+					(*sub).messages.push(
+						MessageInfo {
+							id: id.to_string(),
+							message_number: i
+						}
+					);
+				}
+			}
 		}
 		
 		let mut fresh = false;

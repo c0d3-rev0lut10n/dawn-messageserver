@@ -428,6 +428,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 		for subscription_id in &sub_list.subscriptions {
 			if let Some(subscription) = subscription_cache.get(&subscription_id).await {
 				let mut subscription = subscription.write().unwrap();
+				if u32::try_from((*subscription).messages.len()).is_err() { continue; } // skip any subscriptions that are already filled up
 				(*subscription).messages.push(MessageInfo{
 					id: String::from(&req.id),
 					message_number: msg_number
@@ -585,6 +586,7 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 			let msg_number = String::from_utf8_lossy(&number_bytes).into_owned().parse().unwrap_or(0);
 			if msg_number >= start_msg_id {
 				for i in start_msg_id..msg_number {
+					if u32::try_from((*sub).messages.len()).is_err() { break; } // do not add messages if the subscription is already filled up
 					(*sub).messages.push(
 						MessageInfo {
 							id: id.to_string(),
@@ -619,7 +621,18 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 // return all messages associated with a subscription after sub_msg_number
 #[get("/subscription/{subscription_id}/{sub_msg_number}")]
 async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscription_cache: web::Data<Cache<u128, Arc<RwLock<Subscription>>>>) -> impl Responder {
-	// this will need a lot of structural changes: message detail codes need to be predictable by the recipient in order to authentify for message details directly as well, and in /subscribe it has to be possible to use "start message numbers" for every ID, which would automatically add any previously sent messages after the specified number to the subscription
+	let subscription = match subscription_cache.get(&req.subscription_id).await {
+		Some(sub) => sub,
+		None => { return_client_error!("subscription not found"); }
+	};
+	let subscription = subscription.read().unwrap();
+	let saved_msg_number = u32::try_from(subscription.messages.len());
+	if saved_msg_number.is_err() { return_server_error!(); }
+	let saved_msg_number = saved_msg_number.unwrap();
+	if saved_msg_number < req.sub_msg_number {
+		return HttpResponse::NoContent().finish();
+	}
+	
 	return_server_error!();
 }
 

@@ -80,6 +80,6 @@ pub struct DeleteHandleRequestScheme {
 
 #[derive(Deserialize)]
 pub struct SubscriptionRequestScheme {
-	pub subscription_id: String,
+	pub subscription_id: u128,
 	pub sub_msg_number: u32,
 }

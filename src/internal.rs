@@ -38,12 +38,11 @@ pub(crate) struct Message {
 	content: Vec<u8>
 }
 
-pub(crate) async fn get_msg_validated(id: &str, msg_number: &str, mdc: &str) -> Option<Result<Message, GetMessageError>> {
+pub(crate) async fn get_msg_validated(id: &str, msg_number: &u16, mdc: &[u8]) -> Option<Result<Message, GetMessageError>> {
 	// check if id is hex-string
 	if !IS_HEX.is_match(id) { return Some(Err(InvalidInput)); }
 	
 	// check if message detail code is valid
-	if !IS_MDC.is_match(mdc) { return Some(Err(InvalidInput)); }
 	
 	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push(id);
@@ -78,7 +77,7 @@ pub(crate) async fn get_msg_validated(id: &str, msg_number: &str, mdc: &str) -> 
 	let (saved_mdc, info) = file_bytes.split_at(4);
 	
 	// verify mdc
-	if mdc != encode(saved_mdc) {
+	if mdc != saved_mdc {
 		return Some(Err(WrongMdc));
 	}
 	

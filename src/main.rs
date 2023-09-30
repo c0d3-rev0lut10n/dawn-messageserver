@@ -632,6 +632,14 @@ async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscriptio
 	if saved_msg_number < req.sub_msg_number {
 		return HttpResponse::NoContent().finish();
 	}
+	for sub_msg_number in req.sub_msg_number..saved_msg_number {
+		let message_info = &subscription.messages[usize::try_from(sub_msg_number).unwrap()];
+		let id = &message_info.id;
+		let msg_number = &message_info.message_number;
+		let sub_mdc = &subscription.mdc_map.get(id);
+		if sub_mdc.is_none() { return_server_error!(); }
+		let message = get_msg_validated(id, msg_number, sub_mdc.unwrap()).await;
+	}
 	
 	return_server_error!();
 }

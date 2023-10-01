@@ -18,8 +18,8 @@
 
 use crate::{DELETED, IS_HEX, IS_MDC, RUNTIME_DIR, SAVED_MSG_MINIMUM};
 use GetMessageError::*;
-use hex::encode;
 use std::path::PathBuf;
+use serde::Serialize;
 use tokio::fs::File;
 use fs4::tokio::AsyncFileExt;
 use tokio::io::AsyncReadExt;
@@ -32,6 +32,7 @@ pub(crate) enum GetMessageError {
 	Other
 }
 
+#[derive(Serialize)]
 pub(crate) struct Message {
 	sent: i64,
 	read: i64,

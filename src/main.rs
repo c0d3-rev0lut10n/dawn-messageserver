@@ -32,6 +32,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::path::PathBuf;
 use std::time::Duration;
+use serde::Serialize;
 use tokio::fs::{self, File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use regex::Regex;
@@ -101,9 +102,21 @@ struct Subscription {
 	mdc_map: HashMap<String, Vec<u8>>
 }
 
+#[derive(Serialize)]
 struct MessageInfo {
 	id: String,
 	message_number: u16,
+}
+
+#[derive(Serialize)]
+struct Messages {
+	messages: Vec<SubscriptionMessage>
+}
+
+#[derive(Serialize)]
+struct SubscriptionMessage {
+	status: String,
+	message: Option<Message>
 }
 
 // receive specified message
@@ -632,6 +645,10 @@ async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscriptio
 	if saved_msg_number < req.sub_msg_number {
 		return HttpResponse::NoContent().finish();
 	}
+	
+	let mut response_struct = Messages {
+		messages: Vec::<SubscriptionMessage>::new()
+	};
 	for sub_msg_number in req.sub_msg_number..saved_msg_number {
 		let message_info = &subscription.messages[usize::try_from(sub_msg_number).unwrap()];
 		let id = &message_info.id;
@@ -639,6 +656,30 @@ async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscriptio
 		let sub_mdc = &subscription.mdc_map.get(id);
 		if sub_mdc.is_none() { return_server_error!(); }
 		let message = get_msg_validated(id, msg_number, sub_mdc.unwrap()).await;
+		if message.is_none() { continue; }
+		let message = message.unwrap();
+		match message {
+			Ok(res) => { response_struct.messages.push(SubscriptionMessage {
+				status: "ok".to_string(),
+				message: Some(res)
+			}); }
+			Err(GetMessageError::InvalidInput) => { response_struct.messages.push(SubscriptionMessage {
+				status: "invalid input".to_string(),
+				message: None
+			}); }
+			Err(GetMessageError::WrongMdc) => { response_struct.messages.push(SubscriptionMessage {
+				status: "wrong mdc".to_string(),
+				message: None
+			}); }
+			Err(GetMessageError::Deleted) => { response_struct.messages.push(SubscriptionMessage {
+				status: "deleted".to_string(),
+				message: None
+			}); }
+			Err(GetMessageError::Other) => { response_struct.messages.push(SubscriptionMessage {
+				status: "internal error".to_string(),
+				message: None
+			}); }
+		};
 	}
 	
 	return_server_error!();

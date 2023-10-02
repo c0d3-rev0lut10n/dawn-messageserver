@@ -606,7 +606,7 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 			
 			let msg_number = String::from_utf8_lossy(&number_bytes).into_owned().parse().unwrap_or(0);
 			if msg_number >= start_msg_id {
-				for i in start_msg_id..msg_number {
+				for i in start_msg_id..msg_number+1 {
 					if u32::try_from((*sub).messages.len()).is_err() { break; } // do not add messages if the subscription is already filled up
 					(*sub).messages.push(
 						MessageInfo {

@@ -42,6 +42,7 @@ use chrono::prelude::*;
 use std::array::TryFromSliceError;
 use fs4::tokio::AsyncFileExt;
 use moka::future::Cache;
+use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD as BASE64};
 
 // constants, planned to be read from config file in a later version
 const RUNTIME_DIR: &str = "./runtime";
@@ -116,7 +117,14 @@ struct Messages {
 #[derive(Serialize)]
 struct SubscriptionMessage {
 	status: String,
-	message: Option<Message>
+	message: Option<MessageData>
+}
+
+#[derive(Serialize)]
+struct MessageData {
+	sent: i64,
+	read: i64,
+	content: String
 }
 
 // receive specified message
@@ -634,7 +642,11 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 // return all messages associated with a subscription after sub_msg_number
 #[get("/subscription/{subscription_id}/{sub_msg_number}")]
 async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscription_cache: web::Data<Cache<u128, Arc<RwLock<Subscription>>>>) -> impl Responder {
-	let subscription = match subscription_cache.get(&req.subscription_id).await {
+	let req_sub_id: u128 = match &req.subscription_id.parse() {
+		Ok(res) => *res,
+		Err(_) => { return_client_error!("invalid subscription ID"); }
+	};
+	let subscription = match subscription_cache.get(&req_sub_id).await {
 		Some(sub) => sub,
 		None => { return_client_error!("subscription not found"); }
 	};
@@ -661,7 +673,13 @@ async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscriptio
 		match message {
 			Ok(res) => { response_struct.messages.push(SubscriptionMessage {
 				status: "ok".to_string(),
-				message: Some(res)
+				message: Some(
+					MessageData {
+						sent: res.sent,
+						read: res.read,
+						content: BASE64.encode(res.content)
+					}
+				)
 			}); }
 			Err(GetMessageError::InvalidInput) => { response_struct.messages.push(SubscriptionMessage {
 				status: "invalid input".to_string(),
@@ -681,8 +699,12 @@ async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscriptio
 			}); }
 		};
 	}
-	
-	return_server_error!();
+	let response_text = match serde_json::to_string(&response_struct) {
+		Ok(res) => res,
+		Err(_) => { return_server_error!(); }
+	};
+	let response_bytes = response_text.as_bytes().to_vec();
+	return HttpResponse::Ok().body(response_bytes);
 }
 
 // just return that this is in fact a Dawn server and an API version (used for URL checking in clients)
@@ -710,6 +732,7 @@ async fn main() -> std::io::Result<()> {
 			.service(del)
 			.service(delhandle)
 			.service(subscribe)
+			.service(get_subscription)
 			.service(dawn)
 	})
 	.bind((SERVER_ADDRESS, SERVER_PORT))?

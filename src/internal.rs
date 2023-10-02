@@ -34,9 +34,9 @@ pub(crate) enum GetMessageError {
 
 #[derive(Serialize)]
 pub(crate) struct Message {
-	sent: i64,
-	read: i64,
-	content: Vec<u8>
+	pub sent: i64,
+	pub read: i64,
+	pub content: Vec<u8>
 }
 
 pub(crate) async fn get_msg_validated(id: &str, msg_number: &u16, mdc: &[u8]) -> Option<Result<Message, GetMessageError>> {

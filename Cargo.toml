@@ -13,12 +13,14 @@ rand = { version = "*" }
 openssl = { version = "*", features = ["vendored"]}
 hex = { version = "*" }
 serde = { version = "=1.0.171" , features = ["derive"]}
+serde_json = { version = "*" }
 lazy_static = { version = "*" }
 futures = { version = "*" }
 chrono = { version = "*" }
 tokio = { version = "*", features = ["full"]}
 fs4 = { version = "*", features = ["tokio", "tokio-async"] }
 moka = { version = "*", features = ["future"] }
+base64 = { version = "*" }
 
 [profile.release]
 lto = true

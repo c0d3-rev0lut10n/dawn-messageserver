@@ -175,6 +175,24 @@ You can send messages by using the `POST` `/snd/{id}?mdc={mdc}` endpoint. The me
 
 	*Something is wrong with the server. This could i.e. be a permission problem in the runtime directory.*
 
+### Delete a message
+
+`DELETE` `/del/{id}/{msg_number}?mdc={mdc}` is used to delete messages on the server. You need to provide the ID and message number as well as the message detail code to prove your authorization to delete the message.
+
+#### Possible responses:
+
+* `204 No Content`
+
+	*The message was deleted successfully.*
+
+* `400 Bad Request`
+
+	*A client-side error occured, i.e. the message detail code is wrong or the message does not exist.*
+
+* `500 Internal Server Error`
+
+	*Something is wrong with the server. This could i.e. be a permission problem in the runtime directory.*
+
 ### Set/edit a handle
 
 You can set a handle for any ID (normally, it is an ID specifically used for init requests) by using the `GET` `/sethandle/{id}/{handle}?password={password}&allow_public_init={public_init}&init_secret={init_secret}`. The same endpoint can be used to edit an existing handle, in which case you need to know the correct handle password.

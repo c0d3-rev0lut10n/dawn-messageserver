@@ -193,6 +193,33 @@ You can send messages by using the `POST` `/snd/{id}?mdc={mdc}` endpoint. The me
 
 	*Something is wrong with the server. This could i.e. be a permission problem in the runtime directory.*
 
+### Create a subscription
+
+Receiving messages one by one is not very efficient because you need at least one request per message and you need to poll the endpoint for each ID individually to stay up-to-date when it comes to new messages. Therefore, you should use subscriptions whereever possible. The only exception would be receiving an old message another time. To use subscriptions, distribute the IDs you need to poll in a random pattern over multiple subscriptions. One subscription can hold a maximum total of 100 IDs. Creating a subscription is done using the `POST` `/subscribe` endpoint.
+
+#### Usage
+
+The `POST` body has to contain UTF-8 encoded text that is formatted like this:
+<pre><code>id_42 my_mdc 0
+id_abcdef other_mdc 20
+next_id mdc</code></pre>
+
+The first part of a line is the ID you want to subscribe to. After that, a space is added to split off the next part which is the message detail code that you expect to match the messages' mdc. If you already received some messages, put the number of the first new message you want to get. For example, if you received messages 0 to 19 for an ID, use the number 20.
+
+#### Possible responses:
+
+* `200 OK`
+
+	*The subscription was created. The ID of your new subscription is in the body of the response.*
+
+* `400 Bad Request`
+
+	*A client-side error occured, i.e. your POST body is formatted incorrectly.*
+
+* `500 Internal Server Error`
+
+	*Something is wrong with the server. This could i.e. be a permission problem in the runtime directory.*
+
 ### Set/edit a handle
 
 You can set a handle for any ID (normally, it is an ID specifically used for init requests) by using the `GET` `/sethandle/{id}/{handle}?password={password}&allow_public_init={public_init}&init_secret={init_secret}`. The same endpoint can be used to edit an existing handle, in which case you need to know the correct handle password.

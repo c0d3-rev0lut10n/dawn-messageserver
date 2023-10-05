@@ -642,7 +642,7 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 }
 
 // return all messages associated with a subscription after sub_msg_number
-#[get("/subscription/{subscription_id}/{sub_msg_number}")]
+#[get("/sub/{subscription_id}/{sub_msg_number}")]
 async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscription_cache: web::Data<Cache<u128, Arc<RwLock<Subscription>>>>) -> impl Responder {
 	let req_sub_id: u128 = match &req.subscription_id.parse() {
 		Ok(res) => *res,

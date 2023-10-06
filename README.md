@@ -195,7 +195,7 @@ You can send messages by using the `POST` `/snd/{id}?mdc={mdc}` endpoint. The me
 
 ### Create a subscription
 
-Receiving messages one by one is not very efficient because you need at least one request per message and you need to poll the endpoint for each ID individually to stay up-to-date when it comes to new messages. Therefore, you should use subscriptions whereever possible. The only exception would be receiving an old message another time. To use subscriptions, distribute the IDs you need to poll in a random pattern over multiple subscriptions. One subscription can hold a maximum total of 100 IDs. Creating a subscription is done using the `POST` `/subscribe` endpoint.
+Receiving messages one by one is not very efficient because you need at least one request per message and you need to poll the endpoint for each ID individually to stay up-to-date when it comes to new messages. Therefore, you should use subscriptions whereever possible. The only exception would be receiving an old message another time. To use subscriptions, distribute the IDs you need to poll in a random pattern over multiple subscriptions. One subscription can hold a maximum total of 100 IDs. Creating a subscription is done using the `POST` `/subscribe` endpoint. Subscriptions live for 4 hours by default, but there is no guarantee for that lifetime. The server may evict older subscriptions from the memory if a low-memory scenario occurs.
 
 #### Usage
 
@@ -219,6 +219,51 @@ The first part of a line is the ID you want to subscribe to. After that, a space
 * `500 Internal Server Error`
 
 	*Something is wrong with the server. This could i.e. be a permission problem in the runtime directory.*
+
+### Receive messages via subscription
+
+Receiving messages in bulk via subscription is done using the `GET` `/sub/{subscription_id}/{sub_msg_number}` endpoint. Provide the subscription ID you received when creating the subscription and the first message number you didn't already receive. Subscription message numbers are independent from the numbers associated with the messages in their chats, they simply increment for each new message from any of the associated chats.
+
+#### Possible responses:
+
+* `200 OK`
+
+	*There are new messages. Those are provided in the body as a JSON object containing an array of message objects. Each object has a status and, if the status is "ok", a nested object containing the message's ID, message number, timestamps and content (latter is encoded using base64). Example:*
+	<pre>{"messages":[
+		{
+			"status":"ok",
+			"message":{
+				"id":"42",
+				"msg_number":"0",
+				"sent":1696241555,
+				"read":0,
+				"content":"UlwJDgyq0F1/IHgO9IqCFANRpl/aUwu9Nd7HAITmscvVpHHL7FRhbhli/QHfqKhP1JgO6zYPKA/7lTeXI/qMtz6hzb+l3GSCEQaonriUrqN70Y2aWb6C30kfNlbEUvYnEyXjTpTrIwv5E+vFJ/wv2sgRqYrjEp7uxH0q5Jkz5YoF+b5i8RWdg8Jogh0Uy0+WZdZQCxZtElm/WbT25DIBOxWG54+aU06eDVEUhLGnofzrK7XizDQytxcTkY0WweyHseTN5Rsc6vdw0X6hkrj1LJLuZ1m2HnFqgztr7dncqUR7i97AqU+jTWE7t/J65ouC7D1iVqDJ82yMzsVCj23igw"
+			}
+		},
+		{
+			"status":"ok",
+			"message":{
+				"id":"42",
+				"msg_number":"1",
+				"sent":1696241987,
+				"read":0,
+				"content":"UlwJDgyq0F1/IHgO9IqCFANRpl/aUwu9Nd7HAITmscvVpHHL7FRhbhli/QHfqKhP1JgO6zYPKA/7lTeXI/qMtz6hzb+l3GSCEQaonriUrqN70Y2aWb6C30kfNlbEUvYnEyXjTpTrIwv5E+vFJ/wv2sgRqYrjEp7uxH0q5Jkz5YoF+b5i8RWdg8Jogh0Uy0+WZdZQCxZtElm/WbT25DIBOxWG54+aU06eDVEUhLGnofzrK7XizDQytxcTkY0WweyHseTN5Rsc6vdw0X6hkrj1LJLuZ1m2HnFqgztr7dncqUR7i97AqU+jTWE7t/J65ouC7D1iVqDJ82yMzsVCj23igw"
+			}
+		}
+	]}
+	</pre>
+
+* `204 No Content`
+
+	*There are no messages with a higher number than your provided* `sub_msg_number`*.*
+
+* `400 Bad Request`
+
+	*A client-side error occured, i.e. your provided subscription ID does not exist.*
+
+* `500 Internal Server Error`
+
+	*Something is wrong with the server. This is likely a bug as specific errors for single messages are reported using the* `status` *attribute in JSON*
 
 ### Set/edit a handle
 

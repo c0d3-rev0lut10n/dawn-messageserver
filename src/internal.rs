@@ -16,7 +16,7 @@
 	along with Dawn.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-use crate::{DELETED, IS_HEX, IS_MDC, RUNTIME_DIR, SAVED_MSG_MINIMUM};
+use crate::{DELETED, IS_HEX, RUNTIME_DIR, SAVED_MSG_MINIMUM};
 use GetMessageError::*;
 use std::path::PathBuf;
 use serde::Serialize;

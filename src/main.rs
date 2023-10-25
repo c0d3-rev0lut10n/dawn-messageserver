@@ -454,10 +454,10 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 			sub_list = (*sub_list_lock).clone();
 		}
 		for subscription_id in &sub_list.subscriptions {
-			if let Some(subscription) = subscription_cache.get(&subscription_id).await {
+			if let Some(subscription) = subscription_cache.get(subscription_id).await {
 				let mut subscription = subscription.write().unwrap();
-				if u32::try_from((*subscription).messages.len()).is_err() { continue; } // skip any subscriptions that are already filled up
-				(*subscription).messages.push(MessageInfo{
+				if u32::try_from(subscription.messages.len()).is_err() { continue; } // skip any subscriptions that are already filled up
+				subscription.messages.push(MessageInfo{
 					id: String::from(&req.id),
 					message_number: msg_number
 				});
@@ -488,7 +488,7 @@ async fn del(req: web::Path<DeleteMessageRequestScheme>, query: web::Query<MDCQu
 	
 	if message_file.lock_exclusive().is_err() { return_server_error!(); }
 	
-	let mut file_bytes = Vec::with_capacity(1usize + SAVED_MSG_MINIMUM);
+	let mut file_bytes = [0u8;1usize+SAVED_MSG_MINIMUM].to_vec();
 	if message_file.read_exact(&mut file_bytes).await.is_err() {
 		message_file.unlock().ok();
 		return_server_error!();
@@ -643,7 +643,7 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 		}
 	}
 	let subscription_id = subscription_id.to_string().as_bytes().to_vec();
-	return HttpResponse::Ok().body(subscription_id);
+	HttpResponse::Ok().body(subscription_id)
 }
 
 // return all messages associated with a subscription after sub_msg_number

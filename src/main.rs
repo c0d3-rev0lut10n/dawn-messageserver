@@ -99,12 +99,13 @@ struct Listener {
 	subscriptions: Vec<u128>,
 }
 
+#[derive(Clone)]
 struct Subscription {
 	messages: Vec<MessageInfo>,
 	mdc_map: HashMap<String, Vec<u8>>
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct MessageInfo {
 	id: String,
 	message_number: u16,
@@ -651,11 +652,15 @@ async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscriptio
 		Ok(res) => *res,
 		Err(_) => { return_client_error!("invalid subscription ID"); }
 	};
-	let subscription = match subscription_cache.get(&req_sub_id).await {
+	let subscription_lock = match subscription_cache.get(&req_sub_id).await {
 		Some(sub) => sub,
 		None => { return_client_error!("subscription not found"); }
 	};
-	let subscription = subscription.read().unwrap();
+	let subscription: Subscription;
+	{
+		let subscription_lock = subscription_lock.read().unwrap();
+		subscription = (*subscription_lock).clone();
+	}
 	let saved_msg_number = u32::try_from(subscription.messages.len());
 	if saved_msg_number.is_err() { return_server_error!(); }
 	let saved_msg_number = saved_msg_number.unwrap();

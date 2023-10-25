@@ -242,7 +242,7 @@ pub async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<Hand
 	if !IS_HANDLE.is_match(&req.handle) { return_client_error!("invalid handle"); }
 	
 	// check if the init secret even matches the standard
-	if !IS_INIT_SECRET.is_match(&query.init_secret) && &query.init_secret != "" { return_client_error!("invalid init_secret"); }
+	if !IS_INIT_SECRET.is_match(&query.init_secret) && !&query.init_secret.is_empty() { return_client_error!("invalid init_secret"); }
 	
 	// get handle path, planned to use database in a later version
 	let mut path = PathBuf::from(RUNTIME_DIR);
@@ -273,7 +273,7 @@ pub async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<Hand
 	let (allow_public_init, init_secret) = handle_data.split_at(1);
 	
 	// verify if init is allowed
-	if allow_public_init[0] != 1u8 && &query.init_secret.as_bytes() != &init_secret {
+	if allow_public_init[0] != 1u8 && query.init_secret.as_bytes() != init_secret {
 		return_client_error!("init not allowed");
 	}
 	

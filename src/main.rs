@@ -94,6 +94,7 @@ macro_rules! return_zero {
 	}
 }
 
+#[derive(Clone)]
 struct Listener {
 	subscriptions: Vec<u128>,
 }
@@ -446,8 +447,12 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 	if msg_file.unlock().is_err() { return_server_error!(); }
 	
 	// add message to subscriptions if there are any
-	if let Some(sub_list) = listener_cache.get(&req.id).await {
-		let sub_list = sub_list.read().unwrap();
+	if let Some(sub_list_lock) = listener_cache.get(&req.id).await {
+		let sub_list: Listener;
+		{ // leave the original Listener locked for the shortest possible time
+			let sub_list_lock = sub_list_lock.read().unwrap();
+			sub_list = (*sub_list_lock).clone();
+		}
 		for subscription_id in &sub_list.subscriptions {
 			if let Some(subscription) = subscription_cache.get(&subscription_id).await {
 				let mut subscription = subscription.write().unwrap();

@@ -12,7 +12,7 @@ regex = { version = "*" }
 rand = { version = "*" }
 openssl = { version = "*", features = ["vendored"]}
 hex = { version = "*" }
-serde = { version = "=1.0.171" , features = ["derive"]}
+serde = { version = "*" , features = ["derive"]}
 serde_json = { version = "*" }
 lazy_static = { version = "*" }
 futures = { version = "*" }

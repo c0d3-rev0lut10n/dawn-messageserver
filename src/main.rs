@@ -567,6 +567,7 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 	if subscription_id.is_none() { return_server_error!(); }
 	let subscription_id = subscription_id.unwrap();
 	
+	// since we are creating the subscription and don't use it anywhere else before its creation sequence is finished, this lock can be held without performance implications
 	let mut sub = subscription.write().unwrap();
 	
 	for id_line in id_split {

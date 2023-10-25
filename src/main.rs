@@ -542,7 +542,7 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 	}
 	let body_text = body_text.unwrap();
 	
-	let id_split = body_text.split("\n").collect::<Vec<&str>>();
+	let id_split = body_text.split('\n').collect::<Vec<&str>>();
 	if id_split.len() > 100 {
 		return_client_error!("A subscription may only contain up to 100 IDs");
 	}
@@ -571,7 +571,7 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 	let mut sub = subscription.write().unwrap();
 	
 	for id_line in id_split {
-		let mut id_info = id_line.split(" ");
+		let mut id_info = id_line.split(' ');
 		let id = id_info.next().unwrap();
 		let mdc = match id_info.next() {
 			Some(mdc) => mdc,
@@ -580,10 +580,7 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 			}
 		};
 		let start_msg_id = match id_info.next() {
-			Some(start_msg_id) => match start_msg_id.parse::<u16>() {
-				Ok(res) => res,
-				Err(_) => 0u16
-			}
+			Some(start_msg_id) => start_msg_id.parse::<u16>().unwrap_or(0u16),
 			None => 0u16
 		};
 		
@@ -595,7 +592,7 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 			return_client_error!("one or more IDs did have an incorrectly formatted MDC associated with them");
 		}
 		
-		(*sub).mdc_map.insert(id.to_string(), decode(mdc).unwrap());
+		sub.mdc_map.insert(id.to_string(), decode(mdc).unwrap());
 		
 		let mut id_path = PathBuf::from(RUNTIME_DIR);
 		id_path.push(id);
@@ -615,8 +612,8 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 			let msg_number = String::from_utf8_lossy(&number_bytes).into_owned().parse().unwrap_or(0);
 			if msg_number >= start_msg_id {
 				for i in start_msg_id..msg_number+1 {
-					if u32::try_from((*sub).messages.len()).is_err() { break; } // do not add messages if the subscription is already filled up
-					(*sub).messages.push(
+					if u32::try_from(sub.messages.len()).is_err() { break; } // do not add messages if the subscription is already filled up
+					sub.messages.push(
 						MessageInfo {
 							id: id.to_string(),
 							message_number: i
@@ -639,7 +636,7 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 		}).await;
 		if !fresh {
 			let mut listener = listener.write().unwrap();
-			(*listener).subscriptions.push(subscription_id);
+			listener.subscriptions.push(subscription_id);
 			// listener gets unlocked here
 		}
 	}
@@ -714,7 +711,7 @@ async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscriptio
 		Err(_) => { return_server_error!(); }
 	};
 	let response_bytes = response_text.as_bytes().to_vec();
-	return HttpResponse::Ok().body(response_bytes);
+	HttpResponse::Ok().body(response_bytes)
 }
 
 // just return that this is in fact a Dawn server and an API version (used for URL checking in clients)

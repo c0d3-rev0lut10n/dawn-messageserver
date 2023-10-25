@@ -719,11 +719,18 @@ async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscriptio
 	HttpResponse::Ok().body(response_bytes)
 }
 
+// return the current time to allow clients to compare their system time with this. This is not supposed to be accurate, but rather good enough for clients to calculate temporary IDs
+#[get("/time")]
+async fn get_time() -> impl Responder {
+	let time = Utc::now().timestamp().to_string();
+	HttpResponse::Ok().content_type("text/plain").body(time)
+}
+
 // just return that this is in fact a Dawn server and an API version (used for URL checking in clients)
 #[get("/dawn")]
 async fn dawn() -> impl Responder {
 	let response = "dawn:0.0.1\n".as_bytes();
-	return HttpResponse::Ok().content_type("text/plain").body(response);
+	HttpResponse::Ok().content_type("text/plain").body(response)
 }
 
 #[actix_web::main]
@@ -745,6 +752,7 @@ async fn main() -> std::io::Result<()> {
 			.service(delhandle)
 			.service(subscribe)
 			.service(get_subscription)
+			.service(get_time)
 			.service(dawn)
 	})
 	.bind((SERVER_ADDRESS, SERVER_PORT))?

@@ -265,6 +265,16 @@ Receiving messages in bulk via subscription is done using the `GET` `/sub/{subsc
 
 	*Something is wrong with the server. This is likely a bug as specific errors for single messages are reported using the* `status` *attribute in JSON*
 
+### Check the time
+
+In order to make sure you compute the temporary IDs consistently with the rest of the world, your system time needs to be correct or you need to know the correct time somehow. To check the time (accurate to a view seconds, whcih is enough), the `GET` `/time` endpoint can be used.
+
+#### Possible responses:
+
+* `200 OK`
+
+	*The body is a unix timestamp of the time the server received your request.*
+
 ### Set/edit a handle
 
 You can set a handle for any ID (normally, it is an ID specifically used for init requests) by using the `GET` `/sethandle/{id}/{handle}?password={password}&allow_public_init={public_init}&init_secret={init_secret}`. The same endpoint can be used to edit an existing handle, in which case you need to know the correct handle password.

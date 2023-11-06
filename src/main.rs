@@ -753,7 +753,7 @@ async fn get_time() -> impl Responder {
 // just return that this is in fact a Dawn server and an API version (used for URL checking in clients)
 #[get("/dawn")]
 async fn dawn() -> impl Responder {
-	let response = "dawn:0.0.1\n".as_bytes();
+	let response = "dawn:0.0.2\n".as_bytes();
 	HttpResponse::Ok().content_type("text/plain").body(response)
 }
 

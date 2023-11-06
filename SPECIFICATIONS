@@ -1,6 +1,13 @@
 File formatting:
+	In this explanation, the first byte of a file is referred to as "1". The ranges are always inclusive, meaning that byte 1-4 refers to the first 4 bytes of the file.
 	Messages:
-		Message files are named with a unique number. The content consists of raw bytes. The first 4 bytes of the content are the message deletion code, the next 8 bytes are the timestamp, the rest is the message content.
+		Message files are named with a unique number.
+		Content:
+		Byte 1-4 Message detail code
+		Byte 5-12 Timestamp of the message being sent
+		Byte 13-20 Timestamp of the message being marked as read (or, if not read yet, a padding with zeroes)
+		Byte 21-28 Referrer, or if not provided, a padding with zeroes
+		All bytes starting at byte 29 until EOF: message content
 		If a message gets deleted, the file is truncated with 1 byte of 1's ("ff" in hex)
 	Handles:
 		Handle files have the name of the handle. The content consists of raw bytes. The first 32 bytes are the hash of the handle password, the next 32 bytes are the id, afterwards there is one byte indicating whether or not the handle is private. After that, there are 16 bytes which represent the init secret (only used if the handle is private, else ignored), the rest is the handle content. Since keys should only get used once, there is a function to add multiple keys as well as a rewrite of /who currently being developed.

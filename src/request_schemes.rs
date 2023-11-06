@@ -30,6 +30,12 @@ pub struct SendRequestScheme {
 }
 
 #[derive(Deserialize)]
+pub struct SendQuery {
+	pub mdc: String,
+	pub referrer: Option<String>,
+}
+
+#[derive(Deserialize)]
 pub struct MDCQuery {
 	pub mdc: String,
 }

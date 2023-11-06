@@ -49,7 +49,7 @@ const RUNTIME_DIR: &str = "./runtime";
 const SERVER_ADDRESS: &str = "127.0.0.1";
 const SERVER_PORT: u16 = 8080;
 const MAX_SND_SIZE: usize = 256_000;
-const SAVED_MSG_MINIMUM: usize = 20;
+const SAVED_MSG_MINIMUM: usize = 28;
 
 lazy_static! {
 	// globally defined regex patterns
@@ -218,8 +218,9 @@ async fn d(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) ->
 		return_client_error!("wrong mdc");
 	}
 	
-	// split off timestamps
-	let (timestamps_bytes, _) = info.split_at(16);
+	// split off timestamps and referrer
+	let (timestamps_and_referrer_bytes, _) = info.split_at(24);
+	let (timestamps_bytes, referrer) = timestamps_and_referrer_bytes.split_at(16);
 	let (sent_timestamp_bytes, read_timestamp_bytes) = timestamps_bytes.split_at(8);
 	
 	// parse 'sent' timestamp
@@ -235,6 +236,10 @@ async fn d(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>) ->
 	// respond to the request
 	let mut response = HttpResponse::Ok();
 	response.insert_header(("X-Sent", sent_timestamp.to_string()));
+	if referrer != [0u8;8].to_vec() {
+		// there is a well-defined referrer, return it
+		response.insert_header(("X-Referrer", encode(referrer)));
+	}
 	if read_timestamp_slice == [0u8;8] {
 		// message was never marked as read
 		return response.finish();
@@ -336,7 +341,7 @@ async fn read(req: web::Path<ReceiveRequestScheme>, query: web::Query<MDCQuery>)
 
 // send message to id with message detail code in query string and content in body
 #[post("/snd/{id}")]
-async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut payload: web::Payload, subscription_cache: web::Data<Cache<u128, Arc<RwLock<Subscription>>>>, listener_cache: web::Data<Cache<String, Arc<RwLock<Listener>>>>) -> impl Responder {
+async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<SendQuery>, mut payload: web::Payload, subscription_cache: web::Data<Cache<u128, Arc<RwLock<Subscription>>>>, listener_cache: web::Data<Cache<String, Arc<RwLock<Listener>>>>) -> impl Responder {
 	let mut body = web::BytesMut::new();
 	while let Some(chunk) = payload.next().await {
 		if chunk.is_err() {
@@ -354,6 +359,24 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 	if !IS_HEX.is_match(&req.id) { return_client_error!("invalid id"); }
 	// check if mdc in query string is valid
 	if !IS_MDC.is_match(&query.mdc) { return_client_error!("invalid message detail code"); }
+	// check and decode referrer if needed
+	let mut referrer;
+	if query.referrer.is_some() {
+		let referrer_from_query = query.referrer.clone().unwrap();
+		if referrer_from_query.len() != 16 {
+			return_client_error!("invalid referrer length");
+		}
+		let referrer_result = decode(referrer_from_query);
+		if referrer_result.is_err() {
+			return_client_error!("invalid referrer");
+		}
+		else {
+			referrer = referrer_result.unwrap().to_vec();
+		}
+	}
+	else {
+		referrer = [0u8;8].to_vec();
+	}
 	// get current time
 	let mut time = Utc::now().timestamp().to_le_bytes().to_vec();
 	// prepare the placeholder for the time read
@@ -433,6 +456,7 @@ async fn snd(req: web::Path<SendRequestScheme>, query: web::Query<MDCQuery>, mut
 	let mut file_bytes = file_bytes.unwrap();
 	file_bytes.append(&mut time);
 	file_bytes.append(&mut read_time_placeholder);
+	file_bytes.append(&mut referrer);
 	file_bytes.append(&mut body.to_vec());
 	let msg_file = File::create(msg_path).await;
 	if msg_file.is_err() { return_server_error!(); }

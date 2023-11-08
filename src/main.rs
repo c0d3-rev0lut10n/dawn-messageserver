@@ -133,7 +133,7 @@ struct MessageData {
 
 // receive specified message
 #[get("/rcv/{id}/{msg_number}")]
-async fn rcv(req: web::Path<ReceiveRequestScheme>) -> impl Responder {
+async fn rcv(req: web::Path<ReceiveRequestScheme>, query: web::Query<OptionalMDCQuery>) -> impl Responder {
 	// check if id is hex-string
 	if !IS_HEX.is_match(&req.id) { return_client_error!("parsing error"); }
 	
@@ -167,7 +167,39 @@ async fn rcv(req: web::Path<ReceiveRequestScheme>) -> impl Responder {
 		}
 		return_server_error!();
 	}
+	
 	let (_, message) = file_bytes.split_at(SAVED_MSG_MINIMUM);
+	
+	if query.mdc.is_some() {
+		let query_mdc = query.mdc.clone().unwrap();
+		if !IS_MDC.is_match(&query_mdc) { return_client_error!("invalid mdc"); }
+		let mdc = &file_bytes[0..4];
+		if query_mdc != encode(mdc) {
+			return_client_error!("wrong mdc");
+		}
+		let info = &file_bytes[4..28];
+		let sent_timestamp_slice: &[u8;8] = &info[0..8].try_into().unwrap();
+		let read_timestamp_slice: &[u8;8] = &info[8..16].try_into().unwrap();
+		let referrer = &info[16..24];
+		let sent_timestamp = i64::from_le_bytes(*sent_timestamp_slice);
+		
+		// respond to the request
+		let mut response = HttpResponse::Ok();
+		response.content_type("application/octet-stream");
+		response.insert_header(("X-Sent", sent_timestamp.to_string()));
+		if referrer != &[0u8;8] {
+			// there is a well-defined referrer, return it
+			response.insert_header(("X-Referrer", encode(referrer)));
+		}
+		if read_timestamp_slice == &[0u8;8] {
+			// message was never marked as read
+			return response.body(message.to_vec());
+		}
+		let read_timestamp = i64::from_le_bytes(*read_timestamp_slice);
+	
+		response.insert_header(("X-Read", read_timestamp.to_string()));
+		return response.body(message.to_vec());
+	}
 	
 	return_bytes!(message.to_vec());
 }

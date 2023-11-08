@@ -41,6 +41,11 @@ pub struct MDCQuery {
 }
 
 #[derive(Deserialize)]
+pub struct OptionalMDCQuery {
+	pub mdc: Option<String>,
+}
+
+#[derive(Deserialize)]
 pub struct SetHandleRequestScheme {
 	pub id: String,
 	pub handle: String,

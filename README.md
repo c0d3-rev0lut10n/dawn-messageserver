@@ -159,7 +159,8 @@ The endpoint `GET` `/read/{id}/{msg_number}?mdc={mdc}` allows you to mark a mess
 
 ### Send a message
 
-You can send messages by using the `POST` `/snd/{id}?mdc={mdc}` endpoint. The message detail code is generated client-side and can be chosen arbitrarily. The encrypted message is sent in the `POST` request body.
+You can send messages by using the `POST` `/snd/{id}?mdc={mdc}&referrer={referrer}` endpoint. The message detail code is generated client-side and can be chosen arbitrarily. The encrypted message is sent in the `POST` request body.  
+The **referrer is an optional parameter** that can be read by a client that knows the message detail code. It is a hex string with a length of 16. Currently, this is used to let the recipient of an init request know which key was used.
 
 #### Possible responses:
 

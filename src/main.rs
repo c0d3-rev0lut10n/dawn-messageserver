@@ -803,6 +803,7 @@ async fn main() -> std::io::Result<()> {
 			.service(snd)
 			.service(sethandle)
 			.service(addkey)
+			.service(handle_state)
 			.service(who)
 			.service(del)
 			.service(delhandle)

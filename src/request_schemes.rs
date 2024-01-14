@@ -57,6 +57,11 @@ pub struct AddKeyRequestScheme {
 }
 
 #[derive(Deserialize)]
+pub struct HandleStateRequestScheme {
+	pub handle: String,
+}
+
+#[derive(Deserialize)]
 pub struct HandlePasswordQuery {
 	pub password: String,
 }

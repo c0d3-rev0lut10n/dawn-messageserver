@@ -235,6 +235,12 @@ pub async fn addkey(req: web::Path<AddKeyRequestScheme>, query: web::Query<Handl
 	return_zero!();
 }
 
+// get information about current handle status
+#[get("/handle_state/{handle}")]
+pub async fn handle_state(req: web::Path<HandleStateRequestScheme>, query: web::Query<HandlePasswordQuery>) -> impl Responder {
+	return_server_error!();
+}
+
 // search for a handle
 #[get("/who/{handle}")]
 pub async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<HandleInfoQuery>) -> impl Responder {

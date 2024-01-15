@@ -238,6 +238,39 @@ pub async fn addkey(req: web::Path<AddKeyRequestScheme>, query: web::Query<Handl
 // get information about current handle status
 #[get("/handle_state/{handle}")]
 pub async fn handle_state(req: web::Path<HandleStateRequestScheme>, query: web::Query<HandlePasswordQuery>) -> impl Responder {
+	// check if handle has correct syntax
+	if !IS_HANDLE.is_match(&req.handle) { return_client_error!("invalid handle"); }
+	
+	// check if query string is not empty
+	if query.password.is_empty() { return_client_error!("no password provided"); }
+	
+	// get handle path, planned to use database in a later version
+	let mut path = PathBuf::from(RUNTIME_DIR);
+	path.push("handle");
+	path.push(&req.handle);
+	
+	if !path.exists() { return_client_error!("handle not found"); }
+	
+	let password_hash = openssl::sha::sha256(query.password.as_bytes());
+	
+	let open_handle_file = OpenOptions::new().read(true).open(&path).await;
+	if open_handle_file.is_err() { return_server_error!(); }
+	let mut handle_file = open_handle_file.unwrap();
+	
+	if handle_file.lock_shared().is_err() { return_server_error!(); }
+	
+	let mut saved_content = vec![];
+	if handle_file.read_to_end(&mut saved_content).await.is_err() {
+		handle_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	let (saved_hash, _) = saved_content.split_at(32);
+	// check if hash matches
+	if password_hash != saved_hash {
+		if handle_file.unlock().is_err() { return_server_error!(); }
+		return_client_error!("wrong password");
+	}
 	return_server_error!();
 }
 

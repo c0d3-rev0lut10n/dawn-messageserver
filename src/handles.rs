@@ -17,6 +17,7 @@
 */
 
 use crate::*;
+use crate::response_schemes::*;
 use actix_web::{get, post, delete, web, HttpResponse, Responder};
 use std::path::PathBuf;
 use tokio::fs::{self, File, OpenOptions};
@@ -271,6 +272,38 @@ pub async fn handle_state(req: web::Path<HandleStateRequestScheme>, query: web::
 		if handle_file.unlock().is_err() { return_server_error!(); }
 		return_client_error!("wrong password");
 	}
+	
+	path.pop();
+	path.push(&(String::from(&req.handle) + ".keys"));
+	path.push("key_number");
+	
+	// lock exclusively to prevent race conditions
+	let key_number_file = OpenOptions::new().read(true).open(&path).await;
+	if key_number_file.is_err() { return_server_error!(); }
+	let mut key_number_file = key_number_file.unwrap();
+	
+	if key_number_file.lock_exclusive().is_err() { return_server_error!(); }
+	
+	let mut key_number_bytes = vec![];
+	if key_number_file.read_to_end(&mut key_number_bytes).await.is_err() {
+		key_number_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	let key_number = String::from_utf8_lossy(&key_number_bytes).into_owned().parse().unwrap_or(0);
+	
+	if key_number == 0 {
+		return HttpResponse::Ok().body("{\"key_slot_hashes\":[]}");
+	}
+	
+	let handle_state_info = HandleState {
+		key_slot_hashes: vec![],
+	};
+	
+	for i in 0..key_number {
+		// TODO: calculate hashes for each slot and return serialized struct
+	}
+	
 	return_server_error!();
 }
 

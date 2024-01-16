@@ -22,6 +22,7 @@ extern crate lazy_static;
 mod handles;
 mod internal;
 mod request_schemes;
+mod response_schemes;
 
 use handles::*;
 use internal::*;

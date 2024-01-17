@@ -292,19 +292,26 @@ pub async fn handle_state(req: web::Path<HandleStateRequestScheme>, query: web::
 	
 	let key_number = String::from_utf8_lossy(&key_number_bytes).into_owned().parse().unwrap_or(0);
 	
-	if key_number == 0 {
-		return HttpResponse::Ok().body("{\"key_slot_hashes\":[]}");
-	}
-	
-	let handle_state_info = HandleState {
+	let mut handle_state_info = HandleState {
 		key_slot_hashes: vec![],
 	};
 	
 	for i in 0..key_number {
-		// TODO: calculate hashes for each slot and return serialized struct
+		path.pop();
+		path.push(i.to_string());
+		
+		let key_file = File::open(&path).await;
+		if key_file.is_err() { return_server_error!(); }
+		let mut key_file = key_file.unwrap();
+		
+		let mut file_bytes = vec![];
+		if key_file.read_to_end(&mut file_bytes).await.is_err() { return_server_error!(); }
+		let hash = openssl::sha::sha256(&file_bytes);
+		handle_state_info.key_slot_hashes.push(encode(hash));
 	}
 	
-	return_server_error!();
+	if key_number_file.unlock().is_err() { return_server_error!(); }
+	return HttpResponse::Ok().body(serde_json::to_string(&handle_state_info).unwrap());
 }
 
 // search for a handle

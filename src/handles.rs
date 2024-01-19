@@ -311,7 +311,7 @@ pub async fn handle_state(req: web::Path<HandleStateRequestScheme>, query: web::
 	}
 	
 	if key_number_file.unlock().is_err() { return_server_error!(); }
-	return HttpResponse::Ok().body(serde_json::to_string(&handle_state_info).unwrap());
+	HttpResponse::Ok().body(serde_json::to_string(&handle_state_info).unwrap())
 }
 
 // search for a handle

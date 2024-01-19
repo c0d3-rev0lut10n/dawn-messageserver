@@ -188,7 +188,7 @@ async fn rcv(req: web::Path<ReceiveRequestScheme>, query: web::Query<OptionalMDC
 		let mut response = HttpResponse::Ok();
 		response.content_type("application/octet-stream");
 		response.insert_header(("X-Sent", sent_timestamp.to_string()));
-		if referrer != &[0u8;8] {
+		if referrer != [0u8;8] {
 			// there is a well-defined referrer, return it
 			response.insert_header(("X-Referrer", encode(referrer)));
 		}

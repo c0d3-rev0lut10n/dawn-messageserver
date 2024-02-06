@@ -1,4 +1,4 @@
-/*	Copyright (c) 2023 Laurenz Werner
+/*	Copyright (c) 2023-2024 Laurenz Werner
 	
 	This file is part of Dawn.
 	

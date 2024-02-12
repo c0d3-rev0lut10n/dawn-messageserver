@@ -62,6 +62,11 @@ pub struct HandleStateRequestScheme {
 }
 
 #[derive(Deserialize)]
+pub struct GenerateOneTimeInitRequestScheme {
+	pub handle: String,
+}
+
+#[derive(Deserialize)]
 pub struct HandlePasswordQuery {
 	pub password: String,
 }

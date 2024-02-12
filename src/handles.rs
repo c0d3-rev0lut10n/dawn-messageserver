@@ -314,6 +314,54 @@ pub async fn handle_state(req: web::Path<HandleStateRequestScheme>, query: web::
 	HttpResponse::Ok().body(serde_json::to_string(&handle_state_info).unwrap())
 }
 
+// generate a one-time init link
+#[get("/gen_oti/{handle}")]
+pub async fn gen_oti(req: web::Path<GenerateOneTimeInitRequestScheme>, query: web::Query<HandleInfoQuery>) -> impl Responder {
+	// check if handle has correct syntax
+	if !IS_HANDLE.is_match(&req.handle) { return_client_error!("invalid handle"); }
+	
+	// check if the init secret even matches the standard
+	if !IS_INIT_SECRET.is_match(&query.init_secret) && !&query.init_secret.is_empty() { return_client_error!("invalid init_secret"); }
+	
+	// get handle path, planned to use database in a later version
+	let mut path = PathBuf::from(RUNTIME_DIR);
+	path.push("handle");
+	path.push(&req.handle);
+	if !path.exists() {
+		return_zero!();
+	}
+	// handle exists
+	let handle_file = File::open(&path).await;
+	if handle_file.is_err() { return_server_error!(); }
+	let mut handle_file = handle_file.unwrap();
+	let mut file_content = vec![];
+	
+	if handle_file.lock_shared().is_err() { return_server_error!(); }
+	
+	if handle_file.read_to_end(&mut file_content).await.is_err() {
+		handle_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	if handle_file.unlock().is_err() { return_server_error!(); }
+	
+	if file_content.len() != 81 { return_server_error!(); }
+	
+	let (_, handle_content) = file_content.split_at(32);
+	let (handle_name, handle_data) = handle_content.split_at(32);
+	let (allow_public_init, init_secret) = handle_data.split_at(1);
+	
+	// verify if init is allowed
+	if allow_public_init[0] != 1u8 && query.init_secret.as_bytes() != init_secret {
+		return_client_error!("init not allowed");
+	}
+	
+	// create OTI
+	// TODO
+	
+	return_server_error!();
+}
+
 // search for a handle
 #[get("/who/{handle}")]
 pub async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<HandleInfoQuery>) -> impl Responder {

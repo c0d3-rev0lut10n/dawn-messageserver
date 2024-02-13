@@ -132,6 +132,18 @@ struct MessageData {
 	content: String
 }
 
+struct IdLock {
+	status: bool,
+}
+
+struct HandleLock {
+	status: bool,
+}
+
+struct OtiLock {
+	status: bool,
+}
+
 // receive specified message
 #[get("/rcv/{id}/{msg_number}")]
 async fn rcv(req: web::Path<ReceiveRequestScheme>, query: web::Query<OptionalMDCQuery>) -> impl Responder {
@@ -794,10 +806,16 @@ async fn dawn() -> impl Responder {
 async fn main() -> std::io::Result<()> {
 	let subscription_cache = Cache::<u128, Arc<RwLock<Subscription>>>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
 	let listener_cache = Cache::<String, Arc<RwLock<Listener>>>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
+	let id_lock_cache = Cache::<String, Arc<RwLock<IdLock>>>::builder().build();
+	let handle_lock_cache = Cache::<String, Arc<RwLock<HandleLock>>>::builder().build();
+	let oti_lock_cache = Cache::<String, Arc<RwLock<OtiLock>>>::builder().build();
 	HttpServer::new(move || {
 		App::new()
 			.app_data(web::Data::new(subscription_cache.clone()))
 			.app_data(web::Data::new(listener_cache.clone()))
+			.app_data(web::Data::new(id_lock_cache.clone()))
+			.app_data(web::Data::new(handle_lock_cache.clone()))
+			.app_data(web::Data::new(oti_lock_cache.clone()))
 			.service(rcv)
 			.service(d)
 			.service(read)

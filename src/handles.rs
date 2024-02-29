@@ -24,6 +24,7 @@ use tokio::fs::{self, File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use hex::{encode, decode};
 use futures::StreamExt;
+use rand::Rng as _;
 use fs4::tokio::AsyncFileExt;
 
 // set a handle for id called handle, or change it if it exists and correct password is provided via query string
@@ -316,7 +317,7 @@ pub async fn handle_state(req: web::Path<HandleStateRequestScheme>, query: web::
 
 // generate a one-time init link
 #[get("/gen_oti/{handle}")]
-pub async fn gen_oti(req: web::Path<GenerateOneTimeInitRequestScheme>, query: web::Query<HandleInfoQuery>) -> impl Responder {
+pub async fn gen_oti(req: web::Path<GenerateOneTimeInitRequestScheme>, query: web::Query<HandleInfoQuery>, oti_locks: web::Data<Cache<[u8; 32], Arc<RwLock<OtiLock>>>>) -> impl Responder {
 	// check if handle has correct syntax
 	if !IS_HANDLE.is_match(&req.handle) { return_client_error!("invalid handle"); }
 	
@@ -357,7 +358,28 @@ pub async fn gen_oti(req: web::Path<GenerateOneTimeInitRequestScheme>, query: we
 	}
 	
 	// create OTI
-	// TODO
+	let oti_id = rand::thread_rng().gen::<[u8; 32]>();
+	let mut fresh = false;
+	let oti_lock = oti_locks.get_with(oti_id, async {
+		fresh = true;
+		Arc::new(
+			RwLock::new(
+				OtiLock {
+					status: true,
+				}
+			)
+		)
+	}).await;
+	if !fresh {
+		return_server_error!();
+	}
+	path.pop();
+	path.pop();
+	path.push("oti");
+	if path.exists() {
+		let mut oti_locked = oti_lock.write().unwrap();
+		(*oti_locked).status = false;
+	}
 	
 	return_server_error!();
 }

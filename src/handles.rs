@@ -392,7 +392,7 @@ pub async fn gen_oti(req: web::Path<GenerateOneTimeInitRequestScheme>, query: we
 		let mut oti_file = oti_file.unwrap();
 		let file_bytes = &req.handle.as_bytes();
 		if oti_file.write_all(&file_bytes).await.is_err() || oti_file.flush().await.is_err() {
-			
+			oti_locks.invalidate(&oti_id).await;
 			return_server_error!();
 		}
 	}

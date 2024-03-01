@@ -360,6 +360,14 @@ pub async fn gen_oti(req: web::Path<GenerateOneTimeInitRequestScheme>, query: we
 	// create OTI
 	let oti_id = rand::thread_rng().gen::<[u8; 32]>();
 	let mut fresh = false;
+	path.pop();
+	path.pop();
+	path.push("oti");
+	path.push(encode(oti_id));
+	if path.exists() {
+		// TODO either retry or use a different return code
+		return_server_error!();
+	}
 	let oti_lock = oti_locks.get_with(oti_id, async {
 		fresh = true;
 		Arc::new(
@@ -373,13 +381,22 @@ pub async fn gen_oti(req: web::Path<GenerateOneTimeInitRequestScheme>, query: we
 	if !fresh {
 		return_server_error!();
 	}
-	path.pop();
-	path.pop();
-	path.push("oti");
-	if path.exists() {
+	
+	{
 		let mut oti_locked = oti_lock.write().unwrap();
-		(*oti_locked).status = false;
+		let oti_file = File::create(path).await;
+		if oti_file.is_err() {
+			oti_locks.invalidate(&oti_id).await;
+			return_server_error!();
+		}
+		let mut oti_file = oti_file.unwrap();
+		let file_bytes = &req.handle.as_bytes();
+		if oti_file.write_all(&file_bytes).await.is_err() || oti_file.flush().await.is_err() {
+			
+			return_server_error!();
+		}
 	}
+	oti_locks.invalidate(&oti_id).await;
 	
 	return_server_error!();
 }

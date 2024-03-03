@@ -808,7 +808,7 @@ async fn main() -> std::io::Result<()> {
 	let listener_cache = Cache::<String, Arc<RwLock<Listener>>>::builder().time_to_live(Duration::from_secs(4 * 60 * 60)).build();
 	let id_lock_cache = Cache::<String, Arc<RwLock<IdLock>>>::builder().build();
 	let handle_lock_cache = Cache::<String, Arc<RwLock<HandleLock>>>::builder().build();
-	let oti_lock_cache = Cache::<String, Arc<RwLock<OtiLock>>>::builder().build();
+	let oti_lock_cache = Cache::<[u8; 32], Arc<RwLock<OtiLock>>>::builder().build();
 	HttpServer::new(move || {
 		App::new()
 			.app_data(web::Data::new(subscription_cache.clone()))

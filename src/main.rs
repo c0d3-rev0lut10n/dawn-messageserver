@@ -126,7 +126,7 @@ struct SubscriptionMessage {
 #[derive(Serialize)]
 struct MessageData {
 	id: String,
-	msg_number: String,
+	msg_number: u16,
 	sent: i64,
 	read: i64,
 	content: String
@@ -755,7 +755,7 @@ async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscriptio
 				message: Some(
 					MessageData {
 						id: id.to_string(),
-						msg_number: msg_number.to_string(),
+						msg_number: *msg_number,
 						sent: res.sent,
 						read: res.read,
 						content: BASE64.encode(res.content)

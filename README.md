@@ -235,7 +235,7 @@ Receiving messages in bulk via subscription is done using the `GET` `/sub/{subsc
 			"status":"ok",
 			"message":{
 				"id":"42",
-				"msg_number":"0",
+				"msg_number":0,
 				"sent":1696241555,
 				"read":0,
 				"content":"UlwJDgyq0F1/IHgO9IqCFANRpl/aUwu9Nd7HAITmscvVpHHL7FRhbhli/QHfqKhP1JgO6zYPKA/7lTeXI/qMtz6hzb+l3GSCEQaonriUrqN70Y2aWb6C30kfNlbEUvYnEyXjTpTrIwv5E+vFJ/wv2sgRqYrjEp7uxH0q5Jkz5YoF+b5i8RWdg8Jogh0Uy0+WZdZQCxZtElm/WbT25DIBOxWG54+aU06eDVEUhLGnofzrK7XizDQytxcTkY0WweyHseTN5Rsc6vdw0X6hkrj1LJLuZ1m2HnFqgztr7dncqUR7i97AqU+jTWE7t/J65ouC7D1iVqDJ82yMzsVCj23igw"
@@ -245,7 +245,7 @@ Receiving messages in bulk via subscription is done using the `GET` `/sub/{subsc
 			"status":"ok",
 			"message":{
 				"id":"42",
-				"msg_number":"1",
+				"msg_number":1,
 				"sent":1696241987,
 				"read":0,
 				"content":"UlwJDgyq0F1/IHgO9IqCFANRpl/aUwu9Nd7HAITmscvVpHHL7FRhbhli/QHfqKhP1JgO6zYPKA/7lTeXI/qMtz6hzb+l3GSCEQaonriUrqN70Y2aWb6C30kfNlbEUvYnEyXjTpTrIwv5E+vFJ/wv2sgRqYrjEp7uxH0q5Jkz5YoF+b5i8RWdg8Jogh0Uy0+WZdZQCxZtElm/WbT25DIBOxWG54+aU06eDVEUhLGnofzrK7XizDQytxcTkY0WweyHseTN5Rsc6vdw0X6hkrj1LJLuZ1m2HnFqgztr7dncqUR7i97AqU+jTWE7t/J65ouC7D1iVqDJ82yMzsVCj23igw"

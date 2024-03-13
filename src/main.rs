@@ -643,6 +643,9 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 	for id_line in id_split {
 		let mut id_info = id_line.split(' ');
 		let id = id_info.next().unwrap();
+		if id.is_empty() {
+			continue;
+		}
 		let mdc = match id_info.next() {
 			Some(mdc) => mdc,
 			None => {

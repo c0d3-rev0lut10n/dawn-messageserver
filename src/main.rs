@@ -603,8 +603,6 @@ async fn subscribe(mut payload: web::Payload, subscription_cache: web::Data<Cach
 		}
 		body.extend_from_slice(&chunk);
 	}
-	// delay execution to avoid easily filling up cache space
-	tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 	
 	let body_text = String::from_utf8(body.to_vec());
 	if body_text.is_err() {

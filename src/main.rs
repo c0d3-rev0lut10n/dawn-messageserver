@@ -63,6 +63,14 @@ lazy_static! {
 
 }
 
+// log macros
+#[macro_export]
+macro_rules! info {
+	($a:expr) => {
+		println!("[INFO] {}", $a)
+	}
+}
+
 // server error return macro
 #[macro_export]
 macro_rules! return_server_error {

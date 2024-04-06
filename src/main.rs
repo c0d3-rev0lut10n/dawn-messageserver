@@ -818,6 +818,7 @@ async fn main() -> std::io::Result<()> {
 	let id_lock_cache = Cache::<String, Arc<RwLock<IdLock>>>::builder().build();
 	let handle_lock_cache = Cache::<String, Arc<RwLock<HandleLock>>>::builder().build();
 	let oti_lock_cache = Cache::<[u8; 32], Arc<RwLock<OtiLock>>>::builder().build();
+	info!("Starting server...");
 	HttpServer::new(move || {
 		App::new()
 			.app_data(web::Data::new(subscription_cache.clone()))

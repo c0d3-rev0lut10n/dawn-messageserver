@@ -402,6 +402,22 @@ pub async fn gen_oti(req: web::Path<GenerateOneTimeInitRequestScheme>, query: we
 	return_server_error!();
 }
 
+// generate a direct OTI without depending on any handle
+#[post("/gen_oti")]
+async fn gen_direct_oti() -> impl Responder {
+	let mut path = PathBuf::from(RUNTIME_DIR);
+	path.push("oti");
+	let mut oti = None;
+	for _ in 1..20 {
+		let id: u128 = rand::random();
+		path.push(id);
+		if !path.exists() {
+			// create oti
+		}
+	}
+	return_server_error!();
+}
+
 // search for a handle
 #[get("/who/{handle}")]
 pub async fn who(req: web::Path<FindHandleRequestScheme>, query: web::Query<HandleInfoQuery>) -> impl Responder {

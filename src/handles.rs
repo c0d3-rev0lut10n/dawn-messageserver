@@ -404,7 +404,21 @@ pub async fn gen_oti(req: web::Path<GenerateOneTimeInitRequestScheme>, query: we
 
 // generate a direct OTI without depending on any handle
 #[post("/gen_oti")]
-async fn gen_direct_oti() -> impl Responder {
+async fn gen_direct_oti(mut payload: web::Payload) -> impl Responder {
+	let mut body = web::BytesMut::new();
+	while let Some(chunk) = payload.next().await {
+		if chunk.is_err() {
+			return_client_error!("network error");
+		};
+		let chunk = chunk.unwrap();
+		if (body.len() + chunk.len()) > MAX_SND_SIZE {
+			return_client_error!("request body over max upload size");
+		}
+		body.extend_from_slice(&chunk);
+	}
+	if body.is_empty() {
+		return_client_error!("empty body");
+	}
 	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push("oti");
 	let mut oti = None;
@@ -413,6 +427,7 @@ async fn gen_direct_oti() -> impl Responder {
 		path.push(id);
 		if !path.exists() {
 			// create oti
+			
 		}
 	}
 	return_server_error!();

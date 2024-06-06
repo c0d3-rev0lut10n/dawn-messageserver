@@ -421,14 +421,14 @@ async fn gen_direct_oti(mut payload: web::Payload) -> impl Responder {
 	}
 	let mut path = PathBuf::from(RUNTIME_DIR);
 	path.push("oti");
-	let mut oti = None;
 	for _ in 1..20 {
 		let id: u128 = rand::random();
-		path.push(id);
+		path.push(id.to_string());
 		if !path.exists() {
 			// create oti
 			
 		}
+		path.pop();
 	}
 	return_server_error!();
 }

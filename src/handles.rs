@@ -426,7 +426,17 @@ async fn gen_direct_oti(mut payload: web::Payload) -> impl Responder {
 		path.push(id.to_string());
 		if !path.exists() {
 			// create oti
+			let mut oti_file = File::create(&path).await.expect("File creation error");
 			
+			if oti_file.lock_exclusive().is_err() { return_server_error!(); }
+			
+			if oti_file.write_all(&body).await.is_err() || oti_file.flush().await.is_err() {
+				oti_file.unlock().ok();
+				return_server_error!();
+			}
+			
+			if oti_file.unlock().is_err() { return_server_error!(); }
+			return_zero!();
 		}
 		path.pop();
 	}

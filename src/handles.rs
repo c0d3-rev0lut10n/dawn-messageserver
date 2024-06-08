@@ -436,7 +436,8 @@ async fn gen_direct_oti(mut payload: web::Payload) -> impl Responder {
 			}
 			
 			if oti_file.unlock().is_err() { return_server_error!(); }
-			return_zero!();
+			let oti_id = id.to_string().as_bytes().to_vec();
+			return HttpResponse::Ok().body(oti_id)
 		}
 		path.pop();
 	}

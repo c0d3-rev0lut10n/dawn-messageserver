@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#	Copyright (c) 2023 Laurenz Werner
+#	Copyright (c) 2023-2024 Laurenz Werner
 #	
 #	This file is part of Dawn.
 #	
@@ -40,3 +40,7 @@ curl -v 'http://localhost:8080/sethandle/123412121212121212121212121212121212121
 # add a key to the handle
 notice "adding key to handle"
 curl -v -X POST 'http://localhost:8080/addkey/qwerty?password=password' --data-binary "@./test-data/test2" || error "addkey failed"
+
+# send a message
+notice "sending message"
+curl -v -X POST "http://localhost:8080/snd/2b4d12f02a5b04595bde6cd54e5ff532ea2229769523ca07bf7d1fe59169177f?mdc=12345678" --data-binary "@./test-data/test1" || error "sending message failed"

@@ -83,7 +83,7 @@ pub(crate) async fn get_msg_validated(id: &str, msg_number: &u16, mdc: &[u8]) ->
 	}
 	
 	// split off timestamps
-	let (timestamps_bytes, content) = info.split_at(16);
+	let (timestamps_bytes, rest) = info.split_at(16);
 	let (sent_timestamp_bytes, read_timestamp_bytes) = timestamps_bytes.split_at(8);
 	
 	// parse 'sent' timestamp
@@ -93,6 +93,9 @@ pub(crate) async fn get_msg_validated(id: &str, msg_number: &u16, mdc: &[u8]) ->
 	// parse 'read' timestamp
 	let read_timestamp_slice: [u8;8] = read_timestamp_bytes.to_owned().as_slice().try_into().unwrap();
 	let read_timestamp = i64::from_le_bytes(read_timestamp_slice);
+	
+	// split off content and referrer (latter is ignored for now)
+	let (_, content) = rest.split_at(8);
 	
 	// return message
 	Some(Ok(Message {

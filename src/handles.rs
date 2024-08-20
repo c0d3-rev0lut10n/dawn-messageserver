@@ -237,6 +237,93 @@ pub async fn addkey(req: web::Path<AddKeyRequestScheme>, query: web::Query<Handl
 	return_zero!();
 }
 
+// replace an existing key
+#[post("/replace_key/{handle}/{key_id}")]
+pub async fn replace_key(req: web::Path<ReplaceKeyRequestScheme>, query: web::Query<HandlePasswordQuery>, mut payload: web::Payload) -> impl Responder {
+	// check if handle has correct syntax
+	if !IS_HANDLE.is_match(&req.handle) { return_client_error!("invalid handle"); }
+	
+	// check if query string is not empty
+	if query.password.is_empty() { return_client_error!("no password provided"); }
+	
+	// get handle path, planned to use database in a later version
+	let mut path = PathBuf::from(RUNTIME_DIR);
+	path.push("handle");
+	path.push(&req.handle);
+	
+	if !path.exists() { return_client_error!("handle not found"); }
+	
+	let mut body = web::BytesMut::new();
+	while let Some(chunk) = payload.next().await {
+		if chunk.is_err() {
+			return_client_error!("network error");
+		};
+		let chunk = chunk.unwrap();
+		if (body.len() + chunk.len()) > MAX_SND_SIZE {
+			return_client_error!("request body over max upload size");
+		}
+		body.extend_from_slice(&chunk);
+	}
+	if body.is_empty() {
+		return_client_error!("empty body");
+	}
+	
+	let password_hash = openssl::sha::sha256(query.password.as_bytes());
+	
+	let open_handle_file = OpenOptions::new().read(true).open(&path).await;
+	if open_handle_file.is_err() { return_server_error!(); }
+	let mut handle_file = open_handle_file.unwrap();
+	
+	if handle_file.lock_shared().is_err() { return_server_error!(); }
+	
+	let mut saved_content = vec![];
+	if handle_file.read_to_end(&mut saved_content).await.is_err() {
+		handle_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	let (saved_hash, _) = saved_content.split_at(32);
+	// check if hash matches
+	if password_hash != saved_hash {
+		if handle_file.unlock().is_err() { return_server_error!(); }
+		return_client_error!("wrong password");
+	}
+	
+	path.pop();
+	path.push(&(String::from(&req.handle) + ".keys"));
+	path.push("key_number");
+	
+	// lock exclusively to prevent race conditions
+	let key_number_file = OpenOptions::new().read(true).open(&path).await;
+	if key_number_file.is_err() { return_server_error!(); }
+	let mut key_number_file = key_number_file.unwrap();
+	
+	if key_number_file.lock_exclusive().is_err() { return_server_error!(); }
+	
+	path.pop();
+	path.push(&req.key_id.to_string());
+	if !path.is_file() {
+		key_number_file.unlock().ok();
+		return_client_error!("slot empty");
+	}
+	
+	// replace key
+	let truncate_key_file = OpenOptions::new().write(true).truncate(true).open(&path).await;
+	if truncate_key_file.is_err() {
+		key_number_file.unlock().ok();
+		return_server_error!();
+	}
+	let mut truncate_key_file = truncate_key_file.unwrap();
+	if truncate_key_file.write_all(&body).await.is_err() || truncate_key_file.flush().await.is_err() {
+		key_number_file.unlock().ok();
+		return_server_error!();
+	}
+	
+	if key_number_file.unlock().is_err() { return_server_error!(); }
+	
+	return_zero!();
+}
+
 // get information about current handle status
 #[get("/handle_state/{handle}")]
 pub async fn handle_state(req: web::Path<HandleStateRequestScheme>, query: web::Query<HandlePasswordQuery>) -> impl Responder {

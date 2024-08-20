@@ -57,6 +57,12 @@ pub struct AddKeyRequestScheme {
 }
 
 #[derive(Deserialize)]
+pub struct ReplaceKeyRequestScheme {
+	pub handle: String,
+	pub key_id: u8
+}
+
+#[derive(Deserialize)]
 pub struct HandleStateRequestScheme {
 	pub handle: String,
 }

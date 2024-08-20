@@ -797,6 +797,12 @@ async fn get_subscription(req: web::Path<SubscriptionRequestScheme>, subscriptio
 	HttpResponse::Ok().body(response_bytes)
 }
 
+// save a group key
+#[get("/addgroupkey")]
+async fn add_group_key() -> impl Responder {
+	return_server_error!();
+}
+
 // return the current time to allow clients to compare their system time with this. This is not supposed to be accurate, but rather good enough for clients to calculate temporary IDs
 #[get("/time")]
 async fn get_time() -> impl Responder {
@@ -832,8 +838,10 @@ async fn main() -> std::io::Result<()> {
 			.service(snd)
 			.service(sethandle)
 			.service(addkey)
+			.service(replace_key)
 			.service(handle_state)
 			.service(gen_oti)
+			.service(gen_direct_oti)
 			.service(who)
 			.service(del)
 			.service(delhandle)
